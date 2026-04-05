@@ -1,0 +1,12 @@
+# Optional: named tunnel (use with a static server already on 8080).
+#   python3 -m http.server 8080 --bind 127.0.0.1
+#   ngrok start --config ngrok.yml forest
+#
+# Easier: ./scripts/start-tunnel.sh  (serves + ngrok http in one step)
+# One-time: ngrok config add-authtoken <token>  — https://dashboard.ngrok.com
+
+version: "2"
+tunnels:
+  forest:
+    proto: http
+    addr: 8080

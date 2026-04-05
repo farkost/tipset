@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#c8f0d8" />
+  <title>Nygårds Påsktips</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            easter: {
+              mint: '#c8f0d8',
+              mintdeep: '#9dd9b8',
+              blush: '#f8d7e8',
+              blushdeep: '#e8b8d4',
+              butter: '#fff4c2',
+              butterdeep: '#ffe566',
+              forest: '#2d5a45',
+              forestsoft: '#4a7c62',
+            },
+          },
+          fontFamily: {
+            display: ['"Nunito"', 'system-ui', 'sans-serif'],
+            bevan: ['"Bevan"', 'serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bevan&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    html { -webkit-tap-highlight-color: transparent; }
+    .timer-pulse { animation: timerPulse 1s ease-in-out infinite; }
+    @keyframes timerPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+    .fade-in { animation: fadeIn 0.35s ease-out forwards; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    /* type="text" + mask — undviker iOS starka lösenordsförslag på type="password" */
+    .password-mask { -webkit-text-security: disc; }
+  </style>
+</head>
+<body class="font-display min-h-[100dvh] bg-gradient-to-b from-easter-mint via-easter-blush/40 to-easter-butter text-easter-forest antialiased">
+  <!-- App root -->
+  <div id="app" class="mx-auto flex min-h-[100dvh] max-w-lg flex-col px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6">
+    <h1 id="game-title" class="font-bevan mb-5 text-center text-3xl leading-tight tracking-tight text-easter-forest drop-shadow-sm sm:text-4xl">Spår</h1>
+    <!-- Värd: samma app som spelare — ingen separat värdserver -->
+    <div id="host-bar" class="mb-4 hidden rounded-2xl border-2 border-easter-mintdeep/55 bg-gradient-to-r from-white/95 to-easter-mint/30 px-4 py-3 shadow-md ring-1 ring-easter-mintdeep/25">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-sm font-extrabold text-easter-forest">Du är värd för detta spår</p>
+        <button type="button" id="btn-host-panel"
+          class="shrink-0 rounded-xl bg-easter-forest px-4 py-2 text-sm font-extrabold text-white shadow-sm transition active:scale-[0.99] hover:opacity-95">
+          Värdpanel
+        </button>
+      </div>
+      <p class="mt-1 text-xs font-semibold text-easter-forestsoft">Hantera spelare och resultat här — samma webbplats som deltagarna använder.</p>
+    </div>
+    <!-- Progress (list + aktiv fråga) -->
+    <header id="progress-header" class="mb-4 shrink-0 transition-opacity duration-300">
+      <div class="h-3 overflow-hidden rounded-full bg-white/50 ring-1 ring-easter-mintdeep/50">
+        <div id="progress-fill" class="h-full rounded-full bg-gradient-to-r from-easter-mintdeep via-easter-blushdeep to-easter-butterdeep transition-all duration-500 ease-out" style="width: 0%"></div>
+      </div>
+    </header>
+
+    <!-- LIST VIEW -->
+    <main id="view-list" class="flex flex-1 flex-col gap-3 pb-8">
+      <div id="list-finished-banner" class="hidden rounded-2xl border border-easter-mintdeep/50 bg-white/90 px-4 py-3 text-center text-easter-forest shadow-sm"></div>
+      <div id="submit-result-wrap" class="hidden rounded-2xl border-2 border-easter-forest/35 bg-white px-4 py-4 text-center shadow-sm">
+        <div id="submit-result-pending">
+          <button type="button" id="btn-submit-result"
+            class="w-full rounded-xl bg-easter-forest py-3 text-base font-extrabold text-white shadow-sm transition active:scale-[0.99] hover:opacity-95">
+            Skicka in
+          </button>
+          <p id="submit-result-hint" class="mt-2 text-sm font-semibold text-easter-forestsoft">Sparar resultat och öppnar listan (utslagsfråga: närmast rätt km vid lika poäng).</p>
+        </div>
+        <div id="submit-result-done" class="hidden">
+          <a id="link-result" href="resultat.html"
+            class="inline-flex w-full items-center justify-center rounded-xl border-2 border-easter-mintdeep bg-easter-mint/40 py-3 text-base font-extrabold text-easter-forest transition active:scale-[0.99] hover:bg-easter-mint/60">
+            Visa resultatlista
+          </a>
+        </div>
+      </div>
+      <p class="mb-1 text-center text-sm font-semibold text-easter-forestsoft">Tryck på en fråga för att svara. Du väljer själv ordning. Sista frågan är utslagsfrågan (reglage).</p>
+      <ul id="question-list" class="flex flex-col gap-2"></ul>
+      <div class="mt-6 grid grid-cols-2 gap-3">
+        <button type="button" id="btn-open-ratta" disabled title="Aktiveras när alla frågor är svarade eller missade"
+          class="rounded-2xl bg-easter-forest py-4 text-base font-extrabold text-white shadow-md transition enabled:active:scale-[0.99] enabled:hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45">
+          Rätta
+        </button>
+        <button type="button" id="btn-open-reset" hidden
+          class="rounded-2xl border-2 border-easter-forest/25 bg-white/60 py-4 text-base font-bold text-easter-forestsoft transition active:scale-[0.99] hover:bg-white/90">
+          Nollställ mitt spel (värd)
+        </button>
+      </div>
+    </main>
+
+    <!-- RÄTTA: endast lösenord → visa rätt/fel i listan -->
+    <div id="modal-ratta" class="fixed inset-0 z-50 hidden flex items-end justify-center bg-easter-forest/30 p-4 sm:items-center" aria-hidden="true">
+      <div class="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl ring-1 ring-easter-mintdeep/30 fade-in sm:rounded-3xl">
+        <h2 class="text-xl font-extrabold text-easter-forest">Rätta</h2>
+        <p class="mt-1 text-sm text-easter-forestsoft">Ange lösenord för att markera rätt (grönt) och fel (rött) i listan (endast arrangör).</p>
+        <input id="ratta-password-input" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          class="password-mask mt-4 w-full rounded-2xl border-2 border-easter-mintdeep/50 bg-easter-mint/30 px-4 py-4 text-lg font-bold text-easter-forest outline-none ring-easter-blushdeep focus:border-easter-blushdeep focus:ring-2" placeholder="Lösenord" />
+        <p id="ratta-password-error" class="mt-2 hidden text-sm font-bold text-red-500">Fel lösenord.</p>
+        <div class="mt-6 flex gap-3">
+          <button type="button" id="ratta-pw-cancel" class="flex-1 rounded-2xl border-2 border-easter-forest/20 bg-white py-4 text-lg font-bold text-easter-forestsoft transition active:scale-[0.98]">Avbryt</button>
+          <button type="button" id="ratta-pw-confirm" class="flex-1 rounded-2xl bg-easter-forest py-4 text-lg font-extrabold text-white shadow-lg transition active:scale-[0.98]">Visa rättning</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTIVE QUESTION (full focus) -->
+    <main id="view-question" class="hidden flex-1 flex-col">
+      <div id="timer-wrap" class="mb-4 flex flex-col items-center rounded-3xl border-2 border-white/80 bg-white/80 px-4 py-5 shadow-md backdrop-blur-sm">
+        <span class="text-sm font-bold uppercase tracking-wider text-easter-forestsoft">Tid kvar</span>
+        <div id="timer-display" class="mt-1 font-mono text-5xl font-extrabold tabular-nums text-easter-mintdeep transition-colors duration-300">20</div>
+        <p class="mt-2 text-center text-xs font-semibold text-easter-forestsoft">Frågan döljs när tiden är ute</p>
+      </div>
+      <div id="question-card" class="flex flex-1 flex-col rounded-3xl border border-easter-mintdeep/40 bg-white/90 p-5 shadow-lg fade-in">
+        <p class="text-sm font-bold text-easter-blushdeep">Fråga <span id="q-active-num">1</span></p>
+        <p id="question-text" class="mt-3 shrink-0 text-xl font-bold leading-relaxed text-easter-forest"></p>
+        <div id="question-image-wrap" class="mt-3 hidden overflow-hidden rounded-2xl border border-easter-mintdeep/30 bg-white/50 ring-1 ring-easter-mintdeep/20">
+          <img id="question-image" src="" alt="" class="mx-auto max-h-72 w-full object-contain" loading="lazy" decoding="async" />
+        </div>
+        <div id="question-options" class="mt-4 flex flex-col gap-3"></div>
+        <div id="question-slider-wrap" class="mt-4 hidden flex flex-col gap-4">
+          <label class="text-base font-bold text-easter-forestsoft" for="km-slider">Antal kilometer</label>
+          <input type="range" id="km-slider" min="0" max="500" step="1" class="h-3 w-full cursor-pointer accent-easter-forest" />
+          <p id="km-value" class="text-center text-3xl font-extrabold tabular-nums text-easter-forest">0 km</p>
+        </div>
+        <p id="selected-hint" class="mt-3 text-center text-sm font-bold text-easter-forestsoft">Välj ett svarsalternativ</p>
+        <button type="button" id="btn-submit-answer" disabled
+          class="mt-4 w-full rounded-2xl bg-easter-forest py-5 text-xl font-extrabold text-white shadow-lg transition enabled:active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40">
+          Skicka
+        </button>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Värdpanel (creator token i sessionStorage — samma backend som övriga API-anrop) -->
+  <div id="modal-host" class="fixed inset-0 z-[90] hidden flex items-end justify-center bg-easter-forest/35 p-4 sm:items-center" aria-hidden="true">
+    <div class="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl ring-1 ring-easter-mintdeep/30 fade-in sm:rounded-3xl">
+      <h2 class="text-xl font-extrabold text-easter-forest">Värdpanel</h2>
+      <p class="mt-1 text-sm text-easter-forestsoft">Nollställ en spelare, ta bort ett resultat eller rensa allt. Kräver att du skapade spåret på denna enhet (eller klistrar in nyckeln nedan).</p>
+      <label class="mt-3 block text-xs font-bold text-easter-forestsoft">Arrangörsnyckel (om tom: används sparad från Skapa spår)</label>
+      <textarea id="host-token-override" rows="2" class="mt-1 w-full rounded-xl border-2 border-easter-mintdeep/40 px-3 py-2 font-mono text-xs" placeholder="Valfritt — klistra in om du är värd på annan telefon"></textarea>
+      <p id="host-err" class="mt-2 hidden text-sm font-bold text-red-600"></p>
+      <ul id="host-list" class="mt-3 max-h-52 overflow-auto rounded-xl border border-easter-mintdeep/30 bg-easter-mint/10 p-2 text-sm"></ul>
+      <div class="mt-4 flex flex-col gap-2">
+        <a id="host-link-resultat" href="resultat.html"
+          class="inline-flex w-full items-center justify-center rounded-xl border-2 border-easter-mintdeep bg-easter-mint/50 py-3 text-center text-base font-extrabold text-easter-forest transition active:scale-[0.99] hover:bg-easter-mint/70">
+          Öppna resultatlista
+        </a>
+        <button type="button" id="btn-host-refresh"
+          class="w-full rounded-xl border-2 border-easter-forest/20 bg-white py-3 text-base font-bold text-easter-forest transition active:scale-[0.99] hover:bg-easter-mint/20">
+          Uppdatera lista
+        </button>
+        <button type="button" id="btn-host-clear-all"
+          class="w-full rounded-xl border-2 border-rose-300 bg-rose-50 py-3 text-base font-extrabold text-rose-800 transition active:scale-[0.99]">
+          Nollställ alla spelare och resultat
+        </button>
+        <button type="button" id="btn-host-reset-game"
+          class="w-full rounded-xl border-2 border-amber-400 bg-amber-50 py-3 text-base font-extrabold text-amber-950 transition active:scale-[0.99]">
+          Nollställ mitt spel på denna enhet
+        </button>
+        <button type="button" id="btn-host-close"
+          class="w-full rounded-xl bg-easter-forest py-3 text-base font-extrabold text-white shadow-sm transition active:scale-[0.99]">
+          Stäng
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Geostängsel: krävs innan spel laddas -->
+  <div id="geo-gate" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-easter-mint/95 px-6 text-center backdrop-blur-sm">
+    <p id="geo-msg" class="max-w-sm text-lg font-extrabold text-easter-forest">Kontrollerar plats…</p>
+    <p class="mt-3 max-w-sm text-sm font-semibold text-easter-forestsoft">Du måste tillåta plats och ligga inom arrangörens område för att spela.</p>
+  </div>
+
+  <script>
+    let LOBBY_CODE = '';
+    let USER_ID = '';
+    /** Arrangörsnyckel — värd använder samma app; token skickas vid join för geo-undantag. */
+    let CREATOR_TOKEN = '';
+    let IS_HOST = false;
+    let lastLat = 0;
+    let lastLng = 0;
+    let _saveTimer = null;
+
+    let RATTA_PASSWORD = '';
+    let QUESTIONS = [];
+    let NUM_QUESTIONS = 0;
+    let TARGET_KM_Q11 = 111;
+    let TIMER_MS = 20000;
+
+    function getStorageKey() {
+      return 'forestTreasureHuntQuiz_v1_' + LOBBY_CODE;
+    }
+    function getLeaderboardKey() {
+      return 'forestTreasureHuntLeaderboard_v1_' + LOBBY_CODE;
+    }
+    function getCanViewKey() {
+      return 'forestTreasureHunt_canViewResultat_v1_' + LOBBY_CODE;
+    }
+
+    /** Värd-nyckel: textarea i värdpanel eller sparad från Skapa spår. */
+    function getHostToken() {
+      const ta = document.getElementById('host-token-override');
+      const fromTa = ta && ta.value.trim();
+      if (fromTa) return fromTa;
+      return CREATOR_TOKEN;
+    }
+
+    /** Spårlösenord från QR-länk (sessionStorage efter lyckad join). */
+    function getJoinSecretForApi() {
+      if (!LOBBY_CODE) return '';
+      return sessionStorage.getItem('pasktipset_join_secret_' + LOBBY_CODE) || '';
+    }
+
+    function applyLobbyConfig(cfg) {
+      QUESTIONS = cfg.questions || [];
+      RATTA_PASSWORD =
+        cfg.rattaPassword != null && String(cfg.rattaPassword).length > 0
+          ? cfg.rattaPassword
+          : 'ratta2026';
+      TARGET_KM_Q11 = cfg.targetKmQ11 != null ? Number(cfg.targetKmQ11) : 111;
+      TIMER_MS = cfg.timerMs != null ? Number(cfg.timerMs) : 20000;
+      NUM_QUESTIONS = QUESTIONS.length;
+    }
+
+    function mcQuestionCount() {
+      return Math.max(0, NUM_QUESTIONS - 1);
+    }
+
+    function isSliderQuestion(index) {
+      return QUESTIONS[index] && QUESTIONS[index].type === 'slider';
+    }
+
+    function renderQuestionContent(index) {
+      const q = QUESTIONS[index];
+      el.questionText.textContent = q.prompt;
+      const imgUrl = q.image && String(q.image).trim();
+      if (imgUrl) {
+        el.questionImage.src = imgUrl;
+        el.questionImage.alt = `Bild till fråga ${index + 1}`;
+        el.questionImageWrap.classList.remove('hidden');
+      } else {
+        el.questionImage.removeAttribute('src');
+        el.questionImage.alt = '';
+        el.questionImageWrap.classList.add('hidden');
+      }
+
+      if (isSliderQuestion(index)) {
+        el.questionOptions.classList.add('hidden');
+        el.questionSliderWrap.classList.remove('hidden');
+        const min = q.sliderMin ?? 0;
+        const max = q.sliderMax ?? 500;
+        const step = q.sliderStep ?? 1;
+        el.kmSlider.min = String(min);
+        el.kmSlider.max = String(max);
+        el.kmSlider.step = String(step);
+        const mid = Math.min(max, Math.max(min, Math.round((min + max) / 2)));
+        el.kmSlider.value = String(mid);
+        el.kmValue.textContent = `${mid} km`;
+        selectedAnswer = String(mid);
+        el.btnSubmit.disabled = false;
+        el.selectedHint.textContent = 'Dra reglaget vid behov och skicka in ditt svar.';
+        return;
+      }
+
+      el.questionOptions.classList.remove('hidden');
+      el.questionSliderWrap.classList.add('hidden');
+      el.questionOptions.innerHTML = '';
+      const opts = [
+        { val: '1', label: q.opt1, ring: 'ring-easter-mintdeep' },
+        { val: 'X', label: q.optX, ring: 'ring-easter-blushdeep' },
+        { val: '2', label: q.opt2, ring: 'ring-easter-butterdeep' },
+      ];
+      opts.forEach((o) => {
+        const row = document.createElement('label');
+        row.className =
+          'flex cursor-pointer flex-col gap-1 rounded-2xl border-2 border-easter-mintdeep/40 bg-white/95 px-4 py-4 shadow-sm transition ' +
+          o.ring;
+        row.innerHTML = `<span class="flex items-start gap-3">
+            <input type="radio" name="mc-active" value="${o.val}" class="mc-radio mt-1 h-5 w-5 shrink-0 accent-easter-forest" />
+            <span class="min-w-0 flex-1">
+              <span class="text-sm font-extrabold text-easter-forestsoft">Alternativ ${o.val}</span>
+              <span class="mc-opt-text mt-1 block text-lg font-bold leading-snug text-easter-forest"></span>
+            </span>
+          </span>`;
+        row.querySelector('.mc-opt-text').textContent = o.label;
+        const inp = row.querySelector('.mc-radio');
+        inp.addEventListener('change', () => {
+          if (activeQuestionIndex !== index) return;
+          const s = state.session;
+          if (!s || s.index !== index) return;
+          if (Date.now() >= s.deadline) return;
+          selectedAnswer = o.val;
+          el.btnSubmit.disabled = false;
+          el.selectedHint.textContent = `Valt: ${o.val}`;
+        });
+        el.questionOptions.appendChild(row);
+      });
+    }
+
+    /** @typedef {'locked'|'answered'|'missed'} QStatus */
+    /** @typedef {'1'|'X'|'2'} Answer */
+    /** Svar kan vara 1/X/2 eller kilometer som sträng för slider-fråga. */
+
+    /**
+     * @type {{
+     *   statuses: QStatus[],
+     *   answers: (string|null)[],
+     *   session: null | { index: number, deadline: number },
+     *   gradingRevealed: boolean,
+     *   resultSubmitted: boolean
+     * }}
+     */
+    function defaultState() {
+      return {
+        statuses: Array(NUM_QUESTIONS).fill('locked'),
+        answers: Array(NUM_QUESTIONS).fill(null),
+        session: null,
+        gradingRevealed: false,
+        resultSubmitted: false,
+      };
+    }
+
+    let state = null;
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(getStorageKey());
+        if (!raw) return defaultState();
+        const parsed = JSON.parse(raw);
+        let st = parsed.statuses;
+        let an = parsed.answers;
+        if (!st || !an) return defaultState();
+        if (st.length !== NUM_QUESTIONS || an.length !== NUM_QUESTIONS) return defaultState();
+        return {
+          statuses: st,
+          answers: an,
+          session: parsed.session && typeof parsed.session.deadline === 'number'
+            ? { index: parsed.session.index, deadline: parsed.session.deadline }
+            : null,
+          gradingRevealed: !!parsed.gradingRevealed,
+          resultSubmitted: !!parsed.resultSubmitted,
+        };
+      } catch {
+        return defaultState();
+      }
+    }
+
+    function saveStateLocalOnly() {
+      localStorage.setItem(getStorageKey(), JSON.stringify(state));
+    }
+
+    function saveState() {
+      saveStateLocalOnly();
+      clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(syncStateToServer, 400);
+    }
+
+    async function syncStateToServer() {
+      if (!LOBBY_CODE || !USER_ID || !lastLat) return;
+      const ct = getHostToken();
+      try {
+        await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: USER_ID,
+            state,
+            lat: lastLat,
+            lng: lastLng,
+            creatorToken: ct || undefined,
+            joinSecret: getJoinSecretForApi() || undefined,
+          }),
+        });
+      } catch (e) {
+        console.warn('State sync', e);
+      }
+    }
+
+    async function pullStateFromServer() {
+      if (!LOBBY_CODE || !USER_ID || !state) return;
+      try {
+        const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/state?userId=' + encodeURIComponent(USER_ID));
+        const d = await r.json();
+        if (d.ok && d.state === null) {
+          const hasProgress =
+            state.statuses.some((s) => s !== 'locked') ||
+            state.gradingRevealed ||
+            state.resultSubmitted;
+          if (hasProgress) {
+            state = defaultState();
+            saveStateLocalOnly();
+            updateProgressUI();
+            renderList();
+          }
+          return;
+        }
+        if (d.ok && d.state && typeof d.state === 'object') {
+          state = d.state;
+          saveStateLocalOnly();
+        }
+      } catch (_) {}
+    }
+
+    function normalizePassword(s) {
+      return String(s || '').trim().toLowerCase();
+    }
+
+    function rattaPasswordMatches(input) {
+      const expected = normalizePassword(RATTA_PASSWORD);
+      return expected.length > 0 && normalizePassword(input) === expected;
+    }
+
+    function completedCount() {
+      let n = 0;
+      for (let i = 0; i < NUM_QUESTIONS; i++) {
+        if (state.statuses[i] === 'answered' || state.statuses[i] === 'missed') n++;
+      }
+      return n;
+    }
+
+    function isGameFinished() {
+      return completedCount() === NUM_QUESTIONS;
+    }
+
+    /**
+     * If user had an open session and deadline passed → mark missed.
+     * Uses Date.now() so backgrounding does not pause the clock.
+     */
+    function reconcileSessionOnLoad() {
+      const s = state.session;
+      if (!s) return;
+      const idx = s.index;
+      if (idx < 0 || idx >= NUM_QUESTIONS) {
+        state.session = null;
+        saveState();
+        return;
+      }
+      if (state.statuses[idx] !== 'locked') {
+        state.session = null;
+        saveState();
+        return;
+      }
+      if (Date.now() >= s.deadline) {
+        state.statuses[idx] = 'missed';
+        state.session = null;
+        saveState();
+      }
+    }
+
+    // --- DOM refs ---
+    const el = {
+      progressHeader: document.getElementById('progress-header'),
+      progressFill: document.getElementById('progress-fill'),
+      viewList: document.getElementById('view-list'),
+      viewQuestion: document.getElementById('view-question'),
+      listFinishedBanner: document.getElementById('list-finished-banner'),
+      submitResultWrap: document.getElementById('submit-result-wrap'),
+      submitResultPending: document.getElementById('submit-result-pending'),
+      submitResultDone: document.getElementById('submit-result-done'),
+      btnSubmitResult: document.getElementById('btn-submit-result'),
+      questionList: document.getElementById('question-list'),
+      timerDisplay: document.getElementById('timer-display'),
+      timerWrap: document.getElementById('timer-wrap'),
+      qActiveNum: document.getElementById('q-active-num'),
+      questionText: document.getElementById('question-text'),
+      questionImageWrap: document.getElementById('question-image-wrap'),
+      questionImage: document.getElementById('question-image'),
+      questionOptions: document.getElementById('question-options'),
+      questionSliderWrap: document.getElementById('question-slider-wrap'),
+      kmSlider: document.getElementById('km-slider'),
+      kmValue: document.getElementById('km-value'),
+      selectedHint: document.getElementById('selected-hint'),
+      btnSubmit: document.getElementById('btn-submit-answer'),
+      btnOpenReset: document.getElementById('btn-open-reset'),
+      modalRatta: document.getElementById('modal-ratta'),
+      rattaPasswordInput: document.getElementById('ratta-password-input'),
+      rattaPasswordError: document.getElementById('ratta-password-error'),
+      rattaPwCancel: document.getElementById('ratta-pw-cancel'),
+      rattaPwConfirm: document.getElementById('ratta-pw-confirm'),
+      btnOpenRatta: document.getElementById('btn-open-ratta'),
+    };
+
+    /** @type {number|null} */
+    let activeQuestionIndex = null;
+    /** @type {ReturnType<typeof setInterval>|null} */
+    let tickInterval = null;
+    /** @type {string|null} */
+    let selectedAnswer = null;
+
+    function stopTick() {
+      if (tickInterval) {
+        clearInterval(tickInterval);
+        tickInterval = null;
+      }
+    }
+
+    /** Poäng = antal frågor 1–10 med rätt svar (slider räknas separat i listan). */
+    function countScorePoints() {
+      let n = 0;
+      for (let i = 0; i < NUM_QUESTIONS; i++) {
+        if (isSliderQuestion(i)) continue;
+        if (state.statuses[i] === 'answered' && state.answers[i] === QUESTIONS[i].correct) n++;
+      }
+      return n;
+    }
+
+    function loadLeaderboard() {
+      try {
+        const raw = localStorage.getItem(getLeaderboardKey());
+        if (!raw) return [];
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveLeaderboard(entries) {
+      localStorage.setItem(getLeaderboardKey(), JSON.stringify(entries));
+    }
+
+    /** @returns {number|null} avstånd i km från TARGET_KM_Q11; null om fråga 11 saknas/missad. */
+    function q11KmError() {
+      const i = NUM_QUESTIONS - 1;
+      if (state.statuses[i] !== 'answered' || state.answers[i] == null) return null;
+      const km = parseFloat(String(state.answers[i]));
+      if (Number.isNaN(km)) return null;
+      return Math.abs(km - TARGET_KM_Q11);
+    }
+
+    function q11KmAnswer() {
+      const i = NUM_QUESTIONS - 1;
+      if (state.statuses[i] !== 'answered' || state.answers[i] == null) return null;
+      const km = parseFloat(String(state.answers[i]));
+      return Number.isNaN(km) ? null : km;
+    }
+
+    function refreshGeoOnce() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Ingen plats'));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (p) => {
+            lastLat = p.coords.latitude;
+            lastLng = p.coords.longitude;
+            resolve();
+          },
+          reject,
+          { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+        );
+      });
+    }
+
+    async function submitResultToLeaderboard() {
+      if (!state.gradingRevealed || state.resultSubmitted) return;
+      const nameRaw = window.prompt('Namn eller lag (syns i resultatlistan):', '');
+      if (nameRaw === null) return;
+      const name = String(nameRaw).trim() || 'Anonym';
+      const correct1to10 = countScorePoints();
+      const kmAnswer = q11KmAnswer();
+      const kmError = q11KmError();
+      const entry = {
+        id: crypto.randomUUID(),
+        name,
+        correct1to10,
+        kmAnswer,
+        kmError,
+        submittedAt: Date.now(),
+      };
+      try {
+        await refreshGeoOnce();
+        const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/submissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: entry.id,
+            userId: USER_ID,
+            name: entry.name,
+            correct1to10: entry.correct1to10,
+            kmAnswer: entry.kmAnswer,
+            kmError: entry.kmError,
+            submittedAt: entry.submittedAt,
+            lat: lastLat,
+            lng: lastLng,
+            creatorToken: getHostToken() || undefined,
+            joinSecret: getJoinSecretForApi() || undefined,
+          }),
+        });
+        if (!r.ok) throw new Error(await r.text());
+      } catch (e) {
+        console.warn('API otillgänglig, sparar lokalt:', e);
+        const list = loadLeaderboard();
+        list.push(entry);
+        saveLeaderboard(list);
+      }
+      state.resultSubmitted = true;
+      saveState();
+      localStorage.setItem(getCanViewKey(), '1');
+      window.location.href = 'resultat.html?lobby=' + encodeURIComponent(LOBBY_CODE);
+    }
+
+    function updateProgressUI() {
+      const done = completedCount();
+      el.progressFill.style.width = `${(done / NUM_QUESTIONS) * 100}%`;
+      const canRatta = isGameFinished();
+      el.btnOpenRatta.disabled = !canRatta;
+      if (!isGameFinished()) {
+        el.listFinishedBanner.classList.add('hidden');
+        el.submitResultWrap.classList.add('hidden');
+        return;
+      }
+      el.listFinishedBanner.classList.remove('hidden');
+      const points = countScorePoints();
+      const err = q11KmError();
+      const mcMax = mcQuestionCount();
+      const lastNum = NUM_QUESTIONS;
+      const q11Line =
+        state.gradingRevealed && err != null
+          ? `<p class="mt-1 text-sm font-bold text-easter-forestsoft">Fråga ${lastNum}: ${Math.round(q11KmAnswer() ?? 0)} km (${err === 0 ? 'exakt' : `${err.toFixed(0)} km från ${TARGET_KM_Q11} km`}).</p>`
+          : state.gradingRevealed && state.statuses[NUM_QUESTIONS - 1] === 'missed'
+            ? `<p class="mt-1 text-sm font-bold text-easter-forestsoft">Fråga ${lastNum}: missad (räknas sist vid lika poäng).</p>`
+            : '';
+      if (state.gradingRevealed) {
+        el.listFinishedBanner.innerHTML = `
+          <p class="text-base font-extrabold">Klart! Alla frågor är avklarade.</p>
+          <p class="mt-2 text-sm font-bold text-easter-forestsoft">Tipset är rättat. Du fick ${points} poäng av ${mcMax}.</p>
+          ${q11Line}
+        `;
+        el.submitResultWrap.classList.remove('hidden');
+        const lr = document.getElementById('link-result');
+        if (lr) lr.href = 'resultat.html?lobby=' + encodeURIComponent(LOBBY_CODE);
+        if (state.resultSubmitted) {
+          el.submitResultPending.classList.add('hidden');
+          el.submitResultDone.classList.remove('hidden');
+        } else {
+          el.submitResultPending.classList.remove('hidden');
+          el.submitResultDone.classList.add('hidden');
+        }
+      } else {
+        el.listFinishedBanner.innerHTML =
+          '<p class="text-base font-extrabold">Klart! Alla frågor är avklarade.</p>';
+        el.submitResultWrap.classList.add('hidden');
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    async function loadHostPanel() {
+      const errEl = document.getElementById('host-err');
+      const listEl = document.getElementById('host-list');
+      if (!errEl || !listEl || !LOBBY_CODE) return;
+      errEl.classList.add('hidden');
+      listEl.innerHTML = '<li class="text-easter-forestsoft">Laddar…</li>';
+      const tok = getHostToken();
+      if (!tok) {
+        listEl.innerHTML =
+          '<li class="text-easter-forestsoft">Klistra in arrangörsnyckeln ovan (eller skapa spåret på denna enhet).</li>';
+        return;
+      }
+      try {
+        const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/players', {
+          headers: { 'X-Creator-Token': tok },
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Fel');
+        const ta = document.getElementById('host-token-override');
+        if (ta && ta.value.trim() && tok === ta.value.trim()) {
+          sessionStorage.setItem('pasktipset_creator_' + LOBBY_CODE, tok);
+          CREATOR_TOKEN = tok;
+          IS_HOST = true;
+          document.getElementById('host-bar')?.classList.remove('hidden');
+        }
+        const states = d.playerStates || [];
+        const subs = d.submissions || [];
+        listEl.innerHTML = '';
+        if (!states.length && !subs.length) {
+          listEl.innerHTML = '<li class="text-easter-forestsoft">Inga poster ännu.</li>';
+          return;
+        }
+        states.forEach((s) => {
+          const li = document.createElement('li');
+          li.className = 'border-b border-easter-mintdeep/20 py-2';
+          const rawUid = String(s.userId || '');
+          li.innerHTML = `<span class="font-mono text-xs">${escapeHtml(rawUid)}</span> — sparad status
+            <button type="button" class="ml-2 text-rose-600 underline" data-host-uid="">nollställ</button>`;
+          li.querySelector('button')?.setAttribute('data-host-uid', rawUid);
+          listEl.appendChild(li);
+        });
+        subs.forEach((s) => {
+          const li = document.createElement('li');
+          li.className = 'border-b border-easter-mintdeep/20 py-2';
+          const sid = String(s.submissionId || '');
+          const rawUid = String(s.userId || '');
+          li.innerHTML = `<span class="font-mono text-xs">${escapeHtml(rawUid)}</span> — ${escapeHtml(s.name || '')} (resultat)
+            <button type="button" class="ml-2 text-rose-600 underline" data-host-sub="">ta bort</button>`;
+          li.querySelector('button')?.setAttribute('data-host-sub', sid);
+          listEl.appendChild(li);
+        });
+      } catch (e) {
+        errEl.textContent = e.message || 'Fel';
+        errEl.classList.remove('hidden');
+        listEl.innerHTML = '';
+      }
+    }
+
+    async function hostClearUser(userId) {
+      if (!confirm('Nollställ denna spelare?')) return;
+      const tok = getHostToken();
+      if (!tok) return;
+      const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creatorToken: tok, scope: 'user', userId }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        alert(d.error || 'Fel');
+        return;
+      }
+      await loadHostPanel();
+    }
+
+    async function hostClearSubmission(submissionId) {
+      if (!confirm('Ta bort detta resultat?')) return;
+      const tok = getHostToken();
+      if (!tok) return;
+      const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creatorToken: tok, scope: 'submission', submissionId }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        alert(d.error || 'Fel');
+        return;
+      }
+      await loadHostPanel();
+    }
+
+    async function hostClearAll() {
+      if (!confirm('Radera ALLA spelares status och alla resultat för denna lobby?')) return;
+      const tok = getHostToken();
+      if (!tok) return;
+      const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creatorToken: tok, scope: 'all' }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        alert(d.error || 'Fel');
+        return;
+      }
+      await loadHostPanel();
+    }
+
+    function statusLabel(i) {
+      const st = state.statuses[i];
+      if (st === 'answered') return 'Besvarad';
+      if (st === 'missed') return 'Missad';
+      return 'Ej öppnad';
+    }
+
+    /** Bakgrundsklass för svarsindikator 1 / X / 2 (matchar svarsalternativen). */
+    function answerBadgeBg(a) {
+      if (a === '1') return 'bg-easter-mint';
+      if (a === 'X') return 'bg-easter-blush';
+      return 'bg-easter-butter';
+    }
+
+    function rowBackgroundForList(i, locked, st) {
+      if (!state.gradingRevealed || locked) {
+        return locked
+          ? 'cursor-pointer border-easter-mintdeep/50 bg-white/90 active:scale-[0.99] hover:bg-white'
+          : 'cursor-default border-white/40 bg-white/60 opacity-90';
+      }
+      if (st === 'missed') return 'cursor-default border-2 border-red-400 bg-red-100/90 opacity-100';
+      if (st === 'answered' && isSliderQuestion(i)) {
+        const km = parseFloat(String(state.answers[i] ?? ''));
+        const err = Number.isNaN(km) ? Infinity : Math.abs(km - TARGET_KM_Q11);
+        if (err <= 5) {
+          return 'cursor-default border-2 border-green-500 bg-green-100/90 opacity-100';
+        }
+        if (err <= 25) {
+          return 'cursor-default border-2 border-easter-mintdeep/60 bg-easter-mint/50 opacity-100';
+        }
+        if (err <= 80) {
+          return 'cursor-default border-2 border-amber-400/70 bg-amber-50/95 opacity-100';
+        }
+        return 'cursor-default border-2 border-orange-300/80 bg-orange-50/90 opacity-100';
+      }
+      if (st === 'answered') {
+        const ok = state.answers[i] === QUESTIONS[i].correct;
+        return ok
+          ? 'cursor-default border-2 border-green-500 bg-green-100/90 opacity-100'
+          : 'cursor-default border-2 border-red-400 bg-red-100/90 opacity-100';
+      }
+      return 'cursor-default border-white/40 bg-white/60 opacity-90';
+    }
+
+    function renderList() {
+      el.questionList.innerHTML = '';
+      for (let i = 0; i < NUM_QUESTIONS; i++) {
+        const li = document.createElement('li');
+        const st = state.statuses[i];
+        const locked = st === 'locked';
+        li.className =
+          'flex items-center justify-between gap-3 rounded-2xl border-2 px-4 py-4 shadow-sm transition ' +
+          rowBackgroundForList(i, locked, st);
+
+        let rightHtml;
+        if (locked) {
+          rightHtml = '<span class="text-2xl shrink-0" aria-hidden="true">▶</span>';
+        } else if (st === 'missed') {
+          rightHtml = '<span class="text-2xl shrink-0" aria-hidden="true">😑</span>';
+        } else if (isSliderQuestion(i)) {
+          const km = escapeHtml(String(state.answers[i] ?? ''));
+          rightHtml = `<span class="max-w-[5.5rem] shrink-0 rounded-xl bg-easter-mint px-2 py-2 text-center text-xs font-extrabold leading-tight text-easter-forest sm:text-sm" aria-label="Svar: ${km} km">${km} km</span>`;
+        } else {
+          const a = state.answers[i];
+          const bg = answerBadgeBg(a);
+          rightHtml = `<span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${bg} font-extrabold text-2xl text-easter-forest" aria-label="Svar: ${a}">${a}</span>`;
+        }
+
+        li.innerHTML = `
+          <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-easter-butter font-extrabold text-easter-forest">${i + 1}</span>
+          <div class="min-w-0 flex-1 text-left">
+            <span class="block text-lg font-extrabold text-easter-forest">Fråga ${i + 1}</span>
+            <span class="status-text mt-0.5 block text-sm font-bold text-easter-forestsoft">${escapeHtml(statusLabel(i))}</span>
+          </div>
+          ${rightHtml}
+        `;
+
+        if (locked) {
+          li.addEventListener('click', () => startQuestionSession(i));
+        }
+        el.questionList.appendChild(li);
+      }
+    }
+
+    function showView(name) {
+      el.viewList.classList.toggle('hidden', name !== 'list');
+      el.viewQuestion.classList.toggle('hidden', name !== 'question');
+      el.progressHeader.classList.remove('hidden');
+    }
+
+    function openHostResetConfirm() {
+      if (!IS_HOST) return;
+      if (!confirm('Nollställa allt spel på denna telefon? Detta går inte att ångra.')) return;
+      performFullReset();
+    }
+
+    function performFullReset() {
+      stopTick();
+      document.removeEventListener('visibilitychange', onVisibilityWhileQuestion);
+      activeQuestionIndex = null;
+      selectedAnswer = null;
+      closeRattaModal();
+      localStorage.removeItem(getCanViewKey());
+      state = defaultState();
+      saveState();
+      updateProgressUI();
+      renderList();
+      showView('list');
+    }
+
+    function openRattaModal() {
+      if (!isGameFinished()) return;
+      el.rattaPasswordInput.value = '';
+      el.rattaPasswordError.classList.add('hidden');
+      el.modalRatta.classList.remove('hidden');
+      el.modalRatta.setAttribute('aria-hidden', 'false');
+      setTimeout(() => el.rattaPasswordInput.focus(), 100);
+    }
+
+    function closeRattaModal() {
+      el.modalRatta.classList.add('hidden');
+      el.modalRatta.setAttribute('aria-hidden', 'true');
+    }
+
+    function startQuestionSession(index) {
+      activeQuestionIndex = index;
+      const deadline = Date.now() + TIMER_MS;
+      state.session = { index, deadline };
+      saveState();
+
+      selectedAnswer = null;
+      el.qActiveNum.textContent = String(index + 1);
+      renderQuestionContent(index);
+      if (!isSliderQuestion(index)) {
+        el.btnSubmit.disabled = true;
+        selectedAnswer = null;
+        el.selectedHint.textContent = 'Välj ett svarsalternativ';
+      }
+
+      showView('question');
+      updateTimerVisual(deadline);
+      stopTick();
+      tickInterval = setInterval(() => {
+        const s = state.session;
+        if (!s || s.index !== index) {
+          stopTick();
+          return;
+        }
+        if (Date.now() >= s.deadline) {
+          onTimerExpired();
+          return;
+        }
+        updateTimerVisual(s.deadline);
+      }, 250);
+
+      document.addEventListener('visibilitychange', onVisibilityWhileQuestion);
+    }
+
+    function onVisibilityWhileQuestion() {
+      if (activeQuestionIndex === null) return;
+      const s = state.session;
+      if (!s || s.index !== activeQuestionIndex) return;
+      if (Date.now() >= s.deadline) onTimerExpired();
+      else updateTimerVisual(s.deadline);
+    }
+
+    /**
+     * Remaining ms from deadline; countdown uses Date.now() (wall clock).
+     */
+    function updateTimerVisual(deadline) {
+      const left = Math.max(0, deadline - Date.now());
+      const sec = Math.ceil(left / 1000);
+      el.timerDisplay.textContent = String(sec);
+
+      el.timerWrap.classList.toggle('timer-pulse', sec <= 5 && sec > 0);
+
+      // Color phases (20 s): grön → gul → rosa sista 5 s
+      if (sec > 10) {
+        el.timerDisplay.className =
+          'mt-1 font-mono text-5xl font-extrabold tabular-nums text-easter-mintdeep transition-colors duration-300';
+        el.timerWrap.style.borderColor = 'rgba(157, 217, 184, 0.8)';
+      } else if (sec > 5) {
+        el.timerDisplay.className =
+          'mt-1 font-mono text-5xl font-extrabold tabular-nums text-amber-600 transition-colors duration-300';
+        el.timerWrap.style.borderColor = 'rgba(245, 158, 11, 0.5)';
+      } else {
+        el.timerDisplay.className =
+          'mt-1 font-mono text-5xl font-extrabold tabular-nums text-rose-500 transition-colors duration-300';
+        el.timerWrap.style.borderColor = 'rgba(244, 63, 94, 0.45)';
+      }
+    }
+
+    function onTimerExpired() {
+      stopTick();
+      document.removeEventListener('visibilitychange', onVisibilityWhileQuestion);
+      const idx = activeQuestionIndex;
+      if (idx === null) return;
+      const s = state.session;
+      if (!s || s.index !== idx) return;
+      if (state.statuses[idx] !== 'locked') {
+        state.session = null;
+        saveState();
+        activeQuestionIndex = null;
+        returnToListOrSummary();
+        return;
+      }
+      state.statuses[idx] = 'missed';
+      state.session = null;
+      saveState();
+      activeQuestionIndex = null;
+      returnToListOrSummary();
+    }
+
+    function returnToListOrSummary() {
+      updateProgressUI();
+      renderList();
+      showView('list');
+    }
+
+    function submitAnswer() {
+      if (activeQuestionIndex === null) return;
+      const idx = activeQuestionIndex;
+      if (!isSliderQuestion(idx)) {
+        const sel = document.querySelector('#question-options input[name="mc-active"]:checked');
+        selectedAnswer = sel ? sel.value : null;
+        if (!selectedAnswer || !['1', 'X', '2'].includes(selectedAnswer)) return;
+      } else if (selectedAnswer === null) return;
+      const s = state.session;
+      if (!s || s.index !== idx) return;
+      if (Date.now() >= s.deadline) {
+        onTimerExpired();
+        return;
+      }
+      if (state.statuses[idx] !== 'locked') return;
+
+      stopTick();
+      document.removeEventListener('visibilitychange', onVisibilityWhileQuestion);
+
+      state.statuses[idx] = 'answered';
+      state.answers[idx] = selectedAnswer;
+      state.session = null;
+      saveState();
+      activeQuestionIndex = null;
+      selectedAnswer = null;
+      returnToListOrSummary();
+    }
+
+    // --- Wire events ---
+    el.btnSubmit.addEventListener('click', submitAnswer);
+
+    el.kmSlider.addEventListener('input', () => {
+      if (activeQuestionIndex === null || !isSliderQuestion(activeQuestionIndex)) return;
+      const s = state.session;
+      if (!s || s.index !== activeQuestionIndex) return;
+      if (Date.now() >= s.deadline) return;
+      const v = el.kmSlider.value;
+      el.kmValue.textContent = `${v} km`;
+      selectedAnswer = v;
+      el.btnSubmit.disabled = false;
+    });
+
+    el.btnOpenReset.addEventListener('click', openHostResetConfirm);
+
+    el.btnOpenRatta.addEventListener('click', openRattaModal);
+    el.btnSubmitResult.addEventListener('click', () => {
+      submitResultToLeaderboard().catch((err) => console.error(err));
+    });
+
+    el.rattaPwCancel.addEventListener('click', closeRattaModal);
+    el.modalRatta.addEventListener('click', (e) => {
+      if (e.target === el.modalRatta) closeRattaModal();
+    });
+
+    el.rattaPwConfirm.addEventListener('click', () => {
+      if (!rattaPasswordMatches(el.rattaPasswordInput.value)) {
+        el.rattaPasswordError.classList.remove('hidden');
+        return;
+      }
+      el.rattaPasswordError.classList.add('hidden');
+      state.gradingRevealed = true;
+      saveState();
+      closeRattaModal();
+      updateProgressUI();
+      renderList();
+      showView('list');
+    });
+
+    el.rattaPasswordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') el.rattaPwConfirm.click();
+    });
+
+    const modalHost = document.getElementById('modal-host');
+    document.getElementById('btn-host-panel')?.addEventListener('click', () => {
+      modalHost?.classList.remove('hidden');
+      modalHost?.setAttribute('aria-hidden', 'false');
+      loadHostPanel();
+    });
+    document.getElementById('btn-host-reset-game')?.addEventListener('click', () => {
+      if (!IS_HOST) return;
+      if (!confirm('Nollställa allt spel på denna telefon?')) return;
+      modalHost?.classList.add('hidden');
+      modalHost?.setAttribute('aria-hidden', 'true');
+      performFullReset();
+    });
+    document.getElementById('btn-host-close')?.addEventListener('click', () => {
+      modalHost?.classList.add('hidden');
+      modalHost?.setAttribute('aria-hidden', 'true');
+    });
+    document.getElementById('btn-host-refresh')?.addEventListener('click', () => loadHostPanel());
+    document.getElementById('btn-host-clear-all')?.addEventListener('click', () =>
+      hostClearAll().catch(() => {})
+    );
+    document.getElementById('host-list')?.addEventListener('click', (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const uid = t.getAttribute('data-host-uid');
+      const sid = t.getAttribute('data-host-sub');
+      if (uid) hostClearUser(uid).catch(() => {});
+      if (sid) hostClearSubmission(sid).catch(() => {});
+    });
+    modalHost?.addEventListener('click', (e) => {
+      if (e.target === modalHost) {
+        modalHost.classList.add('hidden');
+        modalHost.setAttribute('aria-hidden', 'true');
+      }
+    });
+
+    // Mobile browsers may throttle timers in background; Date.now() + pageshow catches expiry after return.
+    window.addEventListener('pageshow', onVisibilityWhileQuestion);
+
+    async function bootLobby() {
+      const bootSearch = new URLSearchParams(location.search);
+      const p = bootSearch.get('lobby');
+      if (!p) {
+        window.location.replace('lobby.html');
+        return false;
+      }
+      LOBBY_CODE = p.trim().toUpperCase();
+      const joinSecretFromUrl = (bootSearch.get('joinSecret') || bootSearch.get('join') || '').trim();
+      const geoEl = document.getElementById('geo-gate');
+      const geoMsg = document.getElementById('geo-msg');
+      if (!navigator.geolocation) {
+        geoMsg.textContent = 'Webbläsaren stöder inte plats. Spelet kräver plats.';
+        return false;
+      }
+      return new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            (async () => {
+              lastLat = pos.coords.latitude;
+              lastLng = pos.coords.longitude;
+              const stored = localStorage.getItem('pasktipset_uid_' + LOBBY_CODE);
+              try {
+                const creatorTok =
+                  sessionStorage.getItem('pasktipset_creator_' + LOBBY_CODE) || '';
+                CREATOR_TOKEN = creatorTok;
+                IS_HOST = !!CREATOR_TOKEN;
+                const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/join', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    lat: lastLat,
+                    lng: lastLng,
+                    userId: stored || undefined,
+                    creatorToken: creatorTok || undefined,
+                    joinSecret: joinSecretFromUrl || undefined,
+                  }),
+                });
+                const data = await r.json();
+                if (!data.ok) {
+                  geoMsg.textContent = data.error || 'Kunde inte ansluta.';
+                  resolve(false);
+                  return;
+                }
+                USER_ID = data.userId;
+                localStorage.setItem('pasktipset_uid_' + LOBBY_CODE, USER_ID);
+                if (joinSecretFromUrl) {
+                  sessionStorage.setItem('pasktipset_join_secret_' + LOBBY_CODE, joinSecretFromUrl);
+                  const u = new URL(location.href);
+                  u.searchParams.delete('joinSecret');
+                  u.searchParams.delete('join');
+                  history.replaceState(
+                    {},
+                    '',
+                    u.pathname + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '') + u.hash
+                  );
+                }
+                applyLobbyConfig(data.config);
+                document.getElementById('game-title').textContent = data.title || 'Spår';
+                document.title = data.title || 'Spår';
+                const lr = document.getElementById('link-result');
+                if (lr) lr.href = 'resultat.html?lobby=' + encodeURIComponent(LOBBY_CODE);
+                const hostBar = document.getElementById('host-bar');
+                if (hostBar) hostBar.classList.toggle('hidden', !IS_HOST);
+                if (el.btnOpenReset) el.btnOpenReset.hidden = !IS_HOST;
+                const hintEl = document.getElementById('submit-result-hint');
+                if (hintEl) {
+                  hintEl.textContent =
+                    'Sparar resultat och öppnar listan (utslagsfråga: närmast ' +
+                    TARGET_KM_Q11 +
+                    ' km vid lika poäng).';
+                }
+                const hostLinkRes = document.getElementById('host-link-resultat');
+                if (hostLinkRes)
+                  hostLinkRes.href = 'resultat.html?lobby=' + encodeURIComponent(LOBBY_CODE);
+                el.timerDisplay.textContent = String(Math.ceil(TIMER_MS / 1000));
+                await pullStateFromServer();
+                state = loadState();
+                if (!state.statuses || state.statuses.length !== NUM_QUESTIONS) state = defaultState();
+                geoEl.classList.add('hidden');
+                resolve(true);
+              } catch (e) {
+                console.error(e);
+                geoMsg.textContent = 'Ingen kontakt med servern. Kör python3 server.py.';
+                resolve(false);
+              }
+            })();
+          },
+          () => {
+            geoMsg.textContent = 'Tillåt platsen i webbläsaren för att spela.';
+            resolve(false);
+          },
+          { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 }
+        );
+      });
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') pullStateFromServer();
+    });
+
+    setInterval(() => {
+      if (!LOBBY_CODE || !navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          lastLat = p.coords.latitude;
+          lastLng = p.coords.longitude;
+        },
+        () => {},
+        { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 }
+      );
+    }, 90000);
+
+    bootLobby().then((ok) => {
+      if (!ok) return;
+
+      const openHostParams = new URLSearchParams(location.search);
+      if (openHostParams.get('openHost') === '1' || openHostParams.get('openHost') === 'true') {
+        const mh = document.getElementById('modal-host');
+        mh?.classList.remove('hidden');
+        mh?.setAttribute('aria-hidden', 'false');
+        loadHostPanel();
+        openHostParams.delete('openHost');
+        const q = openHostParams.toString();
+        history.replaceState({}, '', location.pathname + (q ? '?' + q : '') + location.hash);
+      }
+
+      reconcileSessionOnLoad();
+      updateProgressUI();
+
+      const jumpParams = new URLSearchParams(location.search);
+      const stationParam = jumpParams.get('station');
+      let openedFromQr = false;
+      if (stationParam) {
+        const j = parseInt(stationParam, 10) - 1;
+        jumpParams.delete('station');
+        history.replaceState(
+          {},
+          '',
+          location.pathname + (jumpParams.toString() ? '?' + jumpParams.toString() : '') + location.hash
+        );
+        if (j >= 0 && j < NUM_QUESTIONS && state.statuses[j] === 'locked') {
+          startQuestionSession(j);
+          openedFromQr = true;
+        }
+      }
+      if (
+        !openedFromQr &&
+        state.session &&
+        state.statuses[state.session.index] === 'locked' &&
+        Date.now() < state.session.deadline
+      ) {
+        activeQuestionIndex = state.session.index;
+        selectedAnswer = null;
+        el.qActiveNum.textContent = String(state.session.index + 1);
+        renderQuestionContent(state.session.index);
+        if (!isSliderQuestion(state.session.index)) {
+          el.btnSubmit.disabled = true;
+          el.selectedHint.textContent = 'Välj ett svarsalternativ';
+        }
+        showView('question');
+        updateTimerVisual(state.session.deadline);
+        stopTick();
+        tickInterval = setInterval(() => {
+          const s = state.session;
+          if (!s) {
+            stopTick();
+            return;
+          }
+          if (Date.now() >= s.deadline) {
+            onTimerExpired();
+            return;
+          }
+          updateTimerVisual(s.deadline);
+        }, 250);
+        document.addEventListener('visibilitychange', onVisibilityWhileQuestion);
+      } else {
+        renderList();
+        showView('list');
+      }
+    });
+  </script>
+</body>
+</html>

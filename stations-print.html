@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stationer — utskrift</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      .station-card { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 antialiased">
+  <div class="no-print mx-auto max-w-2xl px-4 py-6">
+    <button type="button" id="btn-print" class="rounded-xl bg-slate-800 px-4 py-3 font-extrabold text-white">Skriv ut / Spara som PDF</button>
+    <p id="msg" class="mt-4 text-sm text-slate-600"></p>
+    <p class="mt-2 text-xs text-slate-500">Data hämtas från denna webbläsare (samma adress som när du skapade spåret, t.ex. localhost eller din publika URL). Öppna via &quot;Skriv ut stationer &amp; QR&quot; på bekräftelsen, eller ange ?lobby=KOD om du redan har sparat data.</p>
+  </div>
+  <div id="content" class="mx-auto max-w-3xl px-4 pb-12"></div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const code = (params.get('lobby') || '').trim().toUpperCase();
+    const msg = document.getElementById('msg');
+    const content = document.getElementById('content');
+
+    function loadPayload() {
+      if (!code) {
+        msg.textContent = 'Saknar ?lobby=KOD i adressen.';
+        return null;
+      }
+      const key = 'pasktipset_print_' + code;
+      const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (!raw) {
+        msg.textContent =
+          'Ingen utskriftsdata för ' +
+          code +
+          '. Öppna Skapa spår igen och klicka på "Skriv ut stationer & QR" från bekräftelsen (samma webbläsare), eller skapa spåret på nytt.';
+        return null;
+      }
+      try {
+        return JSON.parse(raw);
+      } catch {
+        msg.textContent = 'Ogiltig data.';
+        return null;
+      }
+    }
+
+    async function render() {
+      const data = loadPayload();
+      if (!data || !data.stations || !data.stations.length) return;
+
+      msg.textContent = 'Utskriftsvänlig sida för: ' + data.title + ' (' + data.code + ')';
+
+      const h = document.createElement('div');
+      h.className = 'mb-8 text-center';
+      h.innerHTML = `<h1 class="text-2xl font-extrabold">${escapeHtml(data.title)}</h1>
+        <p class="mt-1 text-sm text-slate-600">Lobby: <span class="font-mono font-bold">${escapeHtml(data.code)}</span></p>
+        <p class="mt-2 text-xs text-slate-500">Stations-QR inkluderar spårlösenord i länken så deltagare kommer in.</p>`;
+      content.appendChild(h);
+
+      if (data.joinGameUrl) {
+        const joinBox = document.createElement('div');
+        joinBox.className =
+          'station-card mb-10 rounded-2xl border-2 border-emerald-400 bg-emerald-50/90 p-6 shadow-sm';
+        joinBox.innerHTML = `
+          <p class="text-lg font-extrabold text-emerald-950">Alla — öppna spelet</p>
+          <p class="mt-1 text-sm text-emerald-900/90">Samma QR för hela gruppen (spårlösenord i länken).</p>
+          <div class="mt-4 flex flex-wrap items-start gap-6">
+            <div class="qr-join-wrap shrink-0"></div>
+            <p class="min-w-0 flex-1 break-all font-mono text-xs text-slate-700">${escapeHtml(data.joinGameUrl)}</p>
+          </div>`;
+        const w = joinBox.querySelector('.qr-join-wrap');
+        await drawQr(w, data.joinGameUrl, 200);
+        content.appendChild(joinBox);
+      }
+
+      for (const st of data.stations) {
+        const card = document.createElement('div');
+        card.className =
+          'station-card mb-8 rounded-2xl border-2 border-slate-200 bg-white p-6 shadow-sm';
+        card.innerHTML = `
+          <div class="flex flex-wrap items-start gap-6">
+            <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-2xl font-extrabold text-emerald-900">${st.num}</div>
+            <div class="min-w-0 flex-1">
+              <p class="text-lg font-extrabold">${escapeHtml(st.title)}</p>
+              <p class="mt-1 break-all font-mono text-xs text-slate-600">${escapeHtml(st.url)}</p>
+            </div>
+            <div class="qr-canvas-wrap shrink-0"></div>
+          </div>
+        `;
+        const wrap = card.querySelector('.qr-canvas-wrap');
+        await drawQr(wrap, st.url, 140);
+        content.appendChild(card);
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    async function drawQr(container, text, width) {
+      const QR = typeof QRCode !== 'undefined' ? QRCode : window.QRCode;
+      const c = document.createElement('canvas');
+      if (QR && typeof QR.toCanvas === 'function') {
+        try {
+          await new Promise((resolve, reject) => {
+            QR.toCanvas(c, text, { width, margin: 2 }, (err) => (err ? reject(err) : resolve()));
+          });
+          container.appendChild(c);
+          return;
+        } catch (_) {}
+      }
+      const img = document.createElement('img');
+      img.alt = 'QR';
+      img.className = 'rounded bg-white p-1';
+      img.width = width;
+      img.height = width;
+      img.src =
+        'https://api.qrserver.com/v1/create-qr-code/?size=' +
+        width +
+        'x' +
+        width +
+        '&data=' +
+        encodeURIComponent(text);
+      container.appendChild(img);
+    }
+
+    document.getElementById('btn-print').addEventListener('click', () => window.print());
+
+    render().catch((e) => {
+      msg.textContent = 'Fel: ' + (e.message || String(e));
+    });
+  </script>
+</body>
+</html>

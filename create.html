@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>Skapa spår</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: Nunito, system-ui, sans-serif; }
+    #map { height: 280px; border-radius: 1rem; z-index: 0; }
+  </style>
+</head>
+<body class="min-h-[100dvh] bg-gradient-to-b from-emerald-100 via-rose-50 to-amber-50 text-emerald-950 antialiased pb-12">
+  <div class="mx-auto max-w-2xl px-4 py-8">
+    <h1 class="text-3xl font-extrabold">Skapa nytt spår</h1>
+    <p class="mt-2 text-sm text-emerald-800/85">Flervalsfrågor (valfritt antal) och en utslagsfråga med reglage sist. Bilder: valfri webbadress (https://…). Spelområde väljs på kartan.</p>
+
+    <form id="form" class="mt-8 flex flex-col gap-8">
+      <section id="public-base-section" class="rounded-2xl border border-sky-200 bg-sky-50/80 p-5 shadow-sm">
+        <div id="public-base-auto" class="hidden">
+          <h2 class="text-lg font-extrabold text-sky-950">Dela spelet</h2>
+          <p id="public-base-auto-text" class="mt-2 text-sm text-sky-900/90"></p>
+        </div>
+        <div id="public-base-manual" class="hidden">
+          <h2 class="text-lg font-extrabold text-sky-950">Dela spelet med andra</h2>
+          <p class="mt-2 text-sm text-sky-900/90">
+            Du verkar skapa spåret från en adress som bara fungerar på <strong>den här datorn</strong>. Ska familj, klass eller vänner kunna gå med behöver du öppna
+            <strong>samma skapa-sida</strong> som alla andra kommer att använda — till exempel den som skolan eller arrangören har skickat ut.
+          </p>
+          <p class="mt-2 text-xs text-sky-800/85">
+            Har du redan fått en annan webbadress till spelet (börjar med https://) kan du klistra in den nedan så att länkar och QR blir rätt redan nu.
+          </p>
+          <label class="mt-3 block text-sm font-bold text-sky-950">Webbadress till spelet (valfritt)</label>
+          <input
+            type="url"
+            id="publicBase"
+            name="publicBase"
+            class="mt-1 w-full rounded-xl border-2 border-sky-300 bg-white px-3 py-2 font-mono text-sm"
+            placeholder="https://…"
+            autocomplete="off"
+          />
+          <p id="public-base-hint" class="mt-2 text-xs text-sky-800/90"></p>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-emerald-200 bg-white/90 p-5 shadow-sm">
+        <h2 class="text-lg font-extrabold">Grund</h2>
+        <label class="mt-3 block text-sm font-bold">Rubrik / namn på spåret</label>
+        <input name="title" required class="mt-1 w-full rounded-xl border-2 border-emerald-200 px-3 py-2 font-semibold" value="Mitt spår" />
+        <p class="mt-4 text-sm font-bold text-emerald-900">Spelområde</p>
+        <p class="text-xs text-emerald-800/80">Klicka på kartan eller dra nålen. Reglage = radie.</p>
+        <div id="map" class="mt-2 w-full border-2 border-emerald-200"></div>
+        <input type="hidden" name="centerLat" id="centerLat" required />
+        <input type="hidden" name="centerLng" id="centerLng" required />
+        <label class="mt-3 block text-sm font-bold">Radie: <span id="radiusLabel">3000</span> m</label>
+        <input type="range" id="radiusSlider" min="50" max="100000" step="10" value="3000" class="mt-1 w-full accent-emerald-700" />
+        <input type="hidden" name="radiusM" id="radiusM" value="3000" />
+        <button type="button" id="btn-here" class="mt-3 rounded-xl border-2 border-emerald-400 bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-900">Centrera på min plats</button>
+        <label class="mt-4 block text-sm font-bold">Sekunder per fråga: <span id="timerLabel">20</span> s</label>
+        <input type="range" id="timerSlider" name="timerSec" min="5" max="120" step="1" value="20" class="mt-1 w-full accent-emerald-700" />
+      </section>
+
+      <section class="rounded-2xl border border-emerald-200 bg-white/90 p-5 shadow-sm">
+        <h2 class="text-lg font-extrabold">Rätta (endast detta lösenord i spelet)</h2>
+        <p class="mt-1 text-xs text-emerald-800/80">Nollställning av spel sker av värd via värdpanel — inte med lösenord här.</p>
+        <label class="mt-3 block text-sm font-bold">Lösenord för att visa rättning (grönt/rött)</label>
+        <input name="rattaPassword" required class="mt-1 w-full rounded-xl border-2 border-emerald-200 px-3 py-2" value="ratta2026" />
+      </section>
+
+      <section class="rounded-2xl border border-emerald-200 bg-white/90 p-5 shadow-sm">
+        <h2 class="text-lg font-extrabold">Flervalsfrågor</h2>
+        <p class="mt-1 text-xs text-emerald-800/80">Minst en. Sista blocket nedan är alltid utslagsfrågan (reglage).</p>
+        <div id="mc-wrap" class="mt-4 flex flex-col gap-6"></div>
+        <button type="button" id="btn-add-mc" class="mt-4 w-full rounded-xl bg-emerald-700 py-3 text-sm font-extrabold text-white sm:w-auto sm:px-6">
+          + Lägg till fråga
+        </button>
+      </section>
+
+      <section class="rounded-2xl border border-amber-200 bg-amber-50/80 p-5 shadow-sm">
+        <h2 class="text-lg font-extrabold">Utslagsfråga (reglage — alltid sist)</h2>
+        <p class="text-xs text-amber-900/80">Här ställer du min och max för reglaget (två reglage). Spelaren ser ett enda reglage.</p>
+        <label class="mt-2 block text-sm font-bold">Frågetext</label>
+        <input id="sl-prompt" class="mt-1 w-full rounded-xl border-2 border-amber-200 px-3 py-2" value="Hur många kilometer är det från start till mål?" />
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="text-xs font-bold">Min (km) — vänster reglage</label>
+            <input type="range" id="tie-min" min="0" max="2000" step="1" value="0" class="mt-1 w-full accent-amber-700" />
+            <span id="tie-min-lbl" class="text-sm font-bold">0</span>
+          </div>
+          <div>
+            <label class="text-xs font-bold">Max (km) — höger reglage</label>
+            <input type="range" id="tie-max" min="0" max="2000" step="1" value="800" class="mt-1 w-full accent-amber-700" />
+            <span id="tie-max-lbl" class="text-sm font-bold">800</span>
+          </div>
+        </div>
+        <label class="mt-3 block text-sm font-bold">Steg</label>
+        <input id="sl-step" type="number" min="1" value="1" class="mt-1 w-full rounded-xl border-2 border-amber-200 px-3 py-2" />
+        <label class="mt-3 block text-sm font-bold">Rätt svar (km) — utslag vid lika poäng</label>
+        <input id="sl-target" type="number" step="any" value="111" class="mt-1 w-full rounded-xl border-2 border-amber-200 px-3 py-2" />
+      </section>
+
+      <p id="err" class="hidden text-center font-bold text-red-600"></p>
+      <button type="submit" id="btnSubmit" disabled class="rounded-2xl bg-emerald-800 py-4 text-lg font-extrabold text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-60">
+        Skapa spår
+      </button>
+    </form>
+
+    <div id="done" class="mt-8 hidden rounded-2xl border-2 border-emerald-400 bg-white p-6 shadow-lg">
+      <div id="done-warn-local" class="mb-4 hidden rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950"></div>
+      <p class="font-extrabold text-emerald-900">Spåret är skapat — du är värd</p>
+      <p class="mt-2 text-sm">Kod: <span id="out-code" class="font-mono text-xl font-bold"></span></p>
+      <p class="mt-2 break-all text-xs text-emerald-800/90">Spara arrangörsnyckel (visas bara nu):<br /><span id="out-token" class="font-mono font-bold"></span></p>
+      <p class="mt-3 text-sm text-emerald-800/90">Du spelar och hanterar spelare i <strong>samma</strong> app som deltagarna (knappen Värd).</p>
+      <p class="mt-4 flex flex-wrap gap-3 text-sm">
+        <a id="link-play" href="#" class="font-bold text-emerald-700 underline">Öppna spel som värd</a>
+        <span class="text-emerald-400">·</span>
+        <a id="link-print" href="#" class="font-bold text-emerald-700 underline">Skriv ut stationer &amp; QR</a>
+        <span class="text-emerald-400">·</span>
+        <a id="link-admin" href="#" class="font-bold text-emerald-700 underline">Admin</a>
+      </p>
+      <p class="mt-2 text-sm"><a id="link-host-other" href="#" class="font-bold text-emerald-700 underline">Värd på annan enhet</a></p>
+      <div class="mt-6 rounded-2xl border border-emerald-300 bg-emerald-50/80 p-4">
+        <p class="text-sm font-extrabold text-emerald-900">QR till spelet (med spårlösenord)</p>
+        <p class="mt-1 text-xs text-emerald-800/90">Deltagare skannar och öppnar spelet; lösenordet följer med i länken (visas inte i spelkonfigurationen).</p>
+        <div class="mt-3 flex flex-wrap items-start gap-4">
+          <div class="relative shrink-0">
+            <canvas id="qr-join" width="180" height="180" class="rounded-lg bg-white p-1 shadow"></canvas>
+            <img
+              id="qr-join-fallback"
+              alt="QR-kod till spelet"
+              width="180"
+              height="180"
+              class="hidden rounded-lg bg-white p-1 shadow"
+            />
+          </div>
+          <div class="min-w-0 flex-1 text-xs">
+            <p id="qr-join-error" class="hidden text-sm font-bold text-amber-800"></p>
+            <p class="font-mono font-bold break-all text-emerald-950" id="qr-join-url"></p>
+          </div>
+        </div>
+      </div>
+      <p class="mt-4"><a href="lobby.html" class="text-sm font-bold text-emerald-800 underline">Tillbaka</a></p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    let map;
+    let marker;
+    let circle;
+    let mcId = 0;
+    const PUBLIC = { ready: false, origin: null, loopback: false };
+    let manualPublicListeners = false;
+
+    function isLoopbackHost() {
+      const h = (location.hostname || '').toLowerCase();
+      return h === '' || h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1';
+    }
+
+    function genJoinSecret() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let s = '';
+      for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
+      return s;
+    }
+
+    /** Endast fältet "Webbadress till spelet" — när sidan inte redan har en publik adress. */
+    function parseManualPublicOrigin() {
+      const raw = (document.getElementById('publicBase') || {}).value?.trim() || '';
+      if (!raw) return null;
+      let u = raw;
+      if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+      try {
+        const p = new URL(u);
+        return p.origin;
+      } catch {
+        return null;
+      }
+    }
+
+    function getResolvedPublicOrigin() {
+      if (PUBLIC.origin) return PUBLIC.origin;
+      return parseManualPublicOrigin();
+    }
+
+    function getGameBaseUrl() {
+      const origin = getResolvedPublicOrigin();
+      if (origin) {
+        return new URL('forest-treasure-hunt.html', origin + '/').href.replace(/#$/, '');
+      }
+      return new URL('forest-treasure-hunt.html', location.href).href.replace(/#$/, '');
+    }
+
+    function isLocalOrLoopbackGameUrl(url) {
+      try {
+        const h = new URL(url).hostname;
+        return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1';
+      } catch {
+        return true;
+      }
+    }
+
+    function updatePublicBaseHint() {
+      const el = document.getElementById('public-base-hint');
+      if (!el) return;
+      if (PUBLIC.origin) return;
+      const o = parseManualPublicOrigin();
+      if (!o) {
+        el.textContent =
+          'Tomt = bara den här datorn kan öppna länkarna. Fyll i om du har fått en riktig webbadress till spelet.';
+        return;
+      }
+      el.textContent = 'Länkar byggs mot: ' + o + ' (sparad i webbläsaren till nästa gång).';
+    }
+
+    function setupManualPublicListeners() {
+      const inp = document.getElementById('publicBase');
+      if (!inp || manualPublicListeners) return;
+      manualPublicListeners = true;
+      const saved = localStorage.getItem('pasktipset_public_base');
+      if (saved) inp.value = saved;
+      inp.addEventListener('input', updatePublicBaseHint);
+      inp.addEventListener('blur', () => {
+        const o = parseManualPublicOrigin();
+        if (o) inp.value = o;
+        updatePublicBaseHint();
+      });
+      updatePublicBaseHint();
+    }
+
+    function applyPublicBaseUI() {
+      const auto = document.getElementById('public-base-auto');
+      const manual = document.getElementById('public-base-manual');
+      const autoText = document.getElementById('public-base-auto-text');
+      if (!auto || !manual) return;
+      if (PUBLIC.origin) {
+        auto.classList.remove('hidden');
+        manual.classList.add('hidden');
+        if (autoText) {
+          autoText.textContent =
+            'Länkar och QR-kod använder samma adress som spelet: ' +
+            PUBLIC.origin +
+            '. Dela dem med deltagarna som vanligt.';
+        }
+        return;
+      }
+      auto.classList.add('hidden');
+      manual.classList.remove('hidden');
+      setupManualPublicListeners();
+    }
+
+    async function initPublicConfig() {
+      PUBLIC.loopback = isLoopbackHost();
+      try {
+        const r = await fetch('/api/config');
+        const d = await r.json();
+        if (d.publicOrigin && typeof d.publicOrigin === 'string') {
+          PUBLIC.origin = d.publicOrigin;
+        }
+      } catch (_) {}
+      if (!PUBLIC.origin && !PUBLIC.loopback) {
+        PUBLIC.origin = location.origin;
+      }
+      PUBLIC.ready = true;
+      applyPublicBaseUI();
+    }
+
+    initPublicConfig().then(() => {
+      const btn = document.getElementById('btnSubmit');
+      if (btn) btn.disabled = false;
+    });
+
+    function showJoinQr(joinGameUrl) {
+      const urlEl = document.getElementById('qr-join-url');
+      const canvas = document.getElementById('qr-join');
+      const imgFb = document.getElementById('qr-join-fallback');
+      const errEl = document.getElementById('qr-join-error');
+      if (urlEl) urlEl.textContent = joinGameUrl;
+      if (errEl) {
+        errEl.classList.add('hidden');
+        errEl.textContent = '';
+      }
+
+      function useHttpQr() {
+        if (!imgFb) return;
+        imgFb.src =
+          'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(joinGameUrl);
+        imgFb.classList.remove('hidden');
+        if (canvas) canvas.classList.add('hidden');
+        if (errEl) {
+          errEl.textContent = 'QR via tjänst (lokalt bibliotek saknas eller fel).';
+          errEl.classList.remove('hidden');
+        }
+      }
+
+      const QR = typeof QRCode !== 'undefined' ? QRCode : typeof window !== 'undefined' ? window.QRCode : undefined;
+      if (canvas && QR && typeof QR.toCanvas === 'function') {
+        QR.toCanvas(canvas, joinGameUrl, { width: 168, margin: 2 }, function (err) {
+          if (err) {
+            useHttpQr();
+            return;
+          }
+          if (imgFb) imgFb.classList.add('hidden');
+          if (canvas) canvas.classList.remove('hidden');
+        });
+      } else {
+        useHttpQr();
+      }
+    }
+
+    function syncTieRange() {
+      let a = Number(document.getElementById('tie-min').value);
+      let b = Number(document.getElementById('tie-max').value);
+      if (a > b) {
+        const t = a;
+        a = b;
+        b = t;
+        document.getElementById('tie-min').value = String(a);
+        document.getElementById('tie-max').value = String(b);
+      }
+      document.getElementById('tie-min-lbl').textContent = String(a);
+      document.getElementById('tie-max-lbl').textContent = String(b);
+    }
+
+    document.getElementById('tie-min').addEventListener('input', syncTieRange);
+    document.getElementById('tie-max').addEventListener('input', syncTieRange);
+    syncTieRange();
+
+    function initMap() {
+      const start = [57.78, 14.16];
+      map = L.map('map').setView(start, 11);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19,
+      }).addTo(map);
+      marker = L.marker(start, { draggable: true }).addTo(map);
+      circle = L.circle(start, { radius: 3000, color: '#047857', fillOpacity: 0.12 }).addTo(map);
+      function syncHidden() {
+        const ll = marker.getLatLng();
+        document.getElementById('centerLat').value = String(ll.lat.toFixed(6));
+        document.getElementById('centerLng').value = String(ll.lng.toFixed(6));
+        const r = Number(document.getElementById('radiusSlider').value);
+        circle.setLatLng(ll);
+        circle.setRadius(r);
+        document.getElementById('radiusM').value = String(r);
+        document.getElementById('radiusLabel').textContent = String(r);
+      }
+      marker.on('move dragend', syncHidden);
+      map.on('click', (e) => {
+        marker.setLatLng(e.latlng);
+        syncHidden();
+      });
+      document.getElementById('radiusSlider').addEventListener('input', syncHidden);
+      syncHidden();
+    }
+
+    if (typeof L !== 'undefined') initMap();
+
+    document.getElementById('btn-here').addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        alert('Plats stöds inte.');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          const lat = p.coords.latitude;
+          const lng = p.coords.longitude;
+          marker.setLatLng([lat, lng]);
+          map.setView([lat, lng], 13);
+          document.getElementById('centerLat').value = String(lat.toFixed(6));
+          document.getElementById('centerLng').value = String(lng.toFixed(6));
+          const r = Number(document.getElementById('radiusSlider').value);
+          circle.setLatLng([lat, lng]);
+          circle.setRadius(r);
+        },
+        () => alert('Kunde inte läsa plats.'),
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      );
+    });
+
+    const timerSlider = document.getElementById('timerSlider');
+    const timerLabel = document.getElementById('timerLabel');
+    timerSlider.addEventListener('input', () => {
+      timerLabel.textContent = timerSlider.value;
+    });
+    timerLabel.textContent = timerSlider.value;
+
+    function mcBlock(id, data) {
+      const d = data || {
+        prompt: 'Fråga',
+        opt1: 'Alternativ 1',
+        optX: 'Alternativ X',
+        opt2: 'Alternativ 2',
+        correct: 'X',
+        image: '',
+      };
+      const section = document.createElement('section');
+      section.className = 'rounded-xl border border-emerald-300 bg-white p-4 shadow-sm';
+      section.dataset.mcId = String(id);
+      section.innerHTML = `
+        <div class="flex justify-between gap-2">
+          <h3 class="font-extrabold text-emerald-900 mc-title">Flervalsfråga</h3>
+          <button type="button" class="btn-remove-mc rounded-lg border border-rose-300 bg-rose-50 px-2 py-1 text-xs font-bold text-rose-800">Ta bort</button>
+        </div>
+        <label class="mt-2 block text-xs font-bold">Frågetext</label>
+        <input data-f="prompt" class="mc-inp mt-1 w-full rounded-lg border px-2 py-2 text-sm" value="${d.prompt.replace(/"/g, '&quot;')}" />
+        <label class="mt-3 block text-xs font-bold">Bild (URL, valfritt)</label>
+        <input data-f="image" class="mc-inp mt-1 w-full rounded-lg border px-2 py-1 text-sm" placeholder="https://..." value="${(d.image || '').replace(/"/g, '&quot;')}" />
+        <p class="mt-3 text-xs font-bold text-emerald-800">Svarsalternativ — markera rätt svar:</p>
+        <div class="mt-2 flex flex-col gap-3">
+          <label class="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-emerald-200 bg-emerald-50/50 px-3 py-2">
+            <input type="radio" name="correct-${id}" value="1" class="mt-1" ${d.correct === '1' ? 'checked' : ''} />
+            <span class="flex-1">
+              <span class="text-xs font-bold text-emerald-800">Alternativ 1</span>
+              <input data-f="opt1" class="mc-inp mt-1 w-full rounded border px-2 py-1 text-sm" value="${d.opt1.replace(/"/g, '&quot;')}" />
+            </span>
+          </label>
+          <label class="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-emerald-200 bg-emerald-50/50 px-3 py-2">
+            <input type="radio" name="correct-${id}" value="X" class="mt-1" ${d.correct === 'X' ? 'checked' : ''} />
+            <span class="flex-1">
+              <span class="text-xs font-bold text-emerald-800">Alternativ X</span>
+              <input data-f="optX" class="mc-inp mt-1 w-full rounded border px-2 py-1 text-sm" value="${d.optX.replace(/"/g, '&quot;')}" />
+            </span>
+          </label>
+          <label class="flex cursor-pointer items-start gap-3 rounded-lg border-2 border-emerald-200 bg-emerald-50/50 px-3 py-2">
+            <input type="radio" name="correct-${id}" value="2" class="mt-1" ${d.correct === '2' ? 'checked' : ''} />
+            <span class="flex-1">
+              <span class="text-xs font-bold text-emerald-800">Alternativ 2</span>
+              <input data-f="opt2" class="mc-inp mt-1 w-full rounded border px-2 py-1 text-sm" value="${d.opt2.replace(/"/g, '&quot;')}" />
+            </span>
+          </label>
+        </div>
+      `;
+      section.querySelector('.btn-remove-mc').addEventListener('click', () => {
+        if (document.querySelectorAll('#mc-wrap section').length <= 1) {
+          alert('Minst en flervalsfråga krävs.');
+          return;
+        }
+        section.remove();
+        renumberMcTitles();
+      });
+      return section;
+    }
+
+    function renumberMcTitles() {
+      document.querySelectorAll('#mc-wrap section').forEach((sec, i) => {
+        const h = sec.querySelector('.mc-title');
+        if (h) h.textContent = 'Flervalsfråga ' + (i + 1);
+      });
+    }
+
+    const mcWrap = document.getElementById('mc-wrap');
+    mcWrap.appendChild(mcBlock(++mcId, {
+      prompt: 'Första frågan',
+      opt1: 'Alt 1',
+      optX: 'Alt X',
+      opt2: 'Alt 2',
+      correct: 'X',
+      image: '',
+    }));
+
+    document.getElementById('btn-add-mc').addEventListener('click', () => {
+      mcWrap.appendChild(mcBlock(++mcId));
+      renumberMcTitles();
+    });
+    renumberMcTitles();
+
+    function collectMcQuestions() {
+      const sections = document.querySelectorAll('#mc-wrap section');
+      const out = [];
+      sections.forEach((sec) => {
+        const prompt = sec.querySelector('[data-f="prompt"]').value.trim();
+        const opt1 = sec.querySelector('[data-f="opt1"]').value.trim();
+        const optX = sec.querySelector('[data-f="optX"]').value.trim();
+        const opt2 = sec.querySelector('[data-f="opt2"]').value.trim();
+        const image = sec.querySelector('[data-f="image"]').value.trim();
+        const id = sec.dataset.mcId;
+        const rad = sec.querySelector(`input[name="correct-${id}"]:checked`);
+        const correct = rad ? rad.value : 'X';
+        const q = { prompt, opt1, optX, opt2, correct };
+        if (image) q.image = image;
+        out.push(q);
+      });
+      return out;
+    }
+
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = document.getElementById('err');
+      err.classList.add('hidden');
+
+      const mc = collectMcQuestions();
+      if (mc.length < 1) {
+        err.textContent = 'Lägg till minst en flervalsfråga.';
+        err.classList.remove('hidden');
+        return;
+      }
+
+      let smin = Number(document.getElementById('tie-min').value);
+      let smax = Number(document.getElementById('tie-max').value);
+      if (smin > smax) {
+        const t = smin;
+        smin = smax;
+        smax = t;
+      }
+
+      const tie = {
+        type: 'slider',
+        prompt: document.getElementById('sl-prompt').value.trim(),
+        sliderMin: smin,
+        sliderMax: smax,
+        sliderStep: Math.max(1, Number(document.getElementById('sl-step').value) || 1),
+      };
+
+      const fd = new FormData(e.target);
+      const joinSecret = genJoinSecret();
+      const config = {
+        stationPasswords: [],
+        questions: mc.concat([tie]),
+        rattaPassword: fd.get('rattaPassword').trim(),
+        targetKmQ11: Number(document.getElementById('sl-target').value) || 111,
+        timerMs: Math.max(5000, (Number(timerSlider.value) || 20) * 1000),
+        mcQuestionCount: mc.length,
+        joinSecret,
+      };
+
+      const body = {
+        title: fd.get('title').trim(),
+        centerLat: Number(document.getElementById('centerLat').value),
+        centerLng: Number(document.getElementById('centerLng').value),
+        radiusM: Number(document.getElementById('radiusM').value),
+        config,
+      };
+
+      try {
+        const r = await fetch('/api/lobbies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) {
+          err.textContent = d.error || 'Kunde inte skapa.';
+          err.classList.remove('hidden');
+          return;
+        }
+        sessionStorage.setItem('pasktipset_creator_' + d.code, d.creatorToken);
+
+        const pb = (document.getElementById('publicBase') || {}).value?.trim() || '';
+        if (!PUBLIC.origin && pb) localStorage.setItem('pasktipset_public_base', pb);
+
+        const gameBase = getGameBaseUrl();
+        const joinQs = `lobby=${encodeURIComponent(d.code)}&joinSecret=${encodeURIComponent(joinSecret)}`;
+        const joinGameUrl = `${gameBase}?${joinQs}`;
+        const stations = [];
+        const nq = config.questions.length;
+        for (let i = 0; i < nq; i++) {
+          const isSl = i === nq - 1 && config.questions[i].type === 'slider';
+          stations.push({
+            num: i + 1,
+            isTiebreaker: isSl,
+            title: isSl ? 'Utslagsfråga (reglage)' : `Flervalsfråga ${i + 1}`,
+            url: `${gameBase}?${joinQs}&station=${i + 1}`,
+          });
+        }
+        const printPayload = JSON.stringify({
+          code: d.code,
+          title: body.title,
+          joinSecret,
+          joinGameUrl,
+          publicBase: getResolvedPublicOrigin() || '',
+          stations,
+          createdAt: Date.now(),
+        });
+        try {
+          localStorage.setItem('pasktipset_print_' + d.code, printPayload);
+        } catch (_) {}
+        sessionStorage.setItem('pasktipset_print_' + d.code, printPayload);
+
+        document.getElementById('form').classList.add('hidden');
+        document.getElementById('done').classList.remove('hidden');
+        const warnLocal = document.getElementById('done-warn-local');
+        if (warnLocal) {
+          if (isLocalOrLoopbackGameUrl(joinGameUrl)) {
+            warnLocal.textContent =
+              'Länkarna fungerar bara på den här enheten. Ska andra gå med? Öppna skapa-sidan på samma webbadress som deltagarna ska använda (eller klistra in den adressen i fältet ovan) och skapa spåret därifrån.';
+            warnLocal.classList.remove('hidden');
+          } else {
+            warnLocal.classList.add('hidden');
+          }
+        }
+        document.getElementById('out-code').textContent = d.code;
+        document.getElementById('out-token').textContent = d.creatorToken;
+        const originForLinks = getResolvedPublicOrigin() || location.origin;
+        const adminBase = new URL('admin.html', originForLinks + '/').href.replace(/#$/, '');
+        document.getElementById('link-play').href = gameBase + '?lobby=' + encodeURIComponent(d.code);
+        document.getElementById('link-admin').href = adminBase + '?lobby=' + encodeURIComponent(d.code);
+        document.getElementById('link-host-other').href =
+          gameBase + '?lobby=' + encodeURIComponent(d.code) + '&openHost=1';
+        /* Relativ så utskriftssidan får samma origin som denna sida — localStorage för utskrift delas inte över olika domäner. */
+        document.getElementById('link-print').href = 'stations-print.html?lobby=' + encodeURIComponent(d.code);
+
+        showJoinQr(joinGameUrl);
+      } catch {
+        err.textContent = 'Ingen server — kör python3 server.py lokalt.';
+        err.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

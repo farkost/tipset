@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#c8f0d8" />
+  <title>Resultat — Nygårds Påsktips</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            easter: {
+              mint: '#c8f0d8',
+              mintdeep: '#9dd9b8',
+              blush: '#f8d7e8',
+              blushdeep: '#e8b8d4',
+              butter: '#fff4c2',
+              butterdeep: '#ffe566',
+              forest: '#2d5a45',
+              forestsoft: '#4a7c62',
+            },
+          },
+          fontFamily: {
+            display: ['"Nunito"', 'system-ui', 'sans-serif'],
+            bevan: ['"Bevan"', 'serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bevan&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    .password-mask { -webkit-text-security: disc; }
+  </style>
+</head>
+<body class="font-display min-h-[100dvh] bg-gradient-to-b from-easter-mint via-easter-blush/40 to-easter-butter text-easter-forest antialiased">
+  <div class="mx-auto max-w-lg px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6">
+    <h1 class="font-bevan mb-2 text-center text-3xl leading-tight tracking-tight text-easter-forest drop-shadow-sm sm:text-4xl">Resultatlista</h1>
+    <p class="mb-6 text-center text-sm font-semibold text-easter-forestsoft">
+      Högst poäng på flervalsfrågor först. Vid lika: bäst utslagsfråga (närmast rätt km).
+    </p>
+    <div id="board" class="rounded-3xl border border-easter-mintdeep/40 bg-white/90 p-4 shadow-lg"></div>
+    <div class="mt-4 flex flex-col gap-3">
+      <button type="button" id="btn-open-reset-results"
+        class="w-full rounded-2xl border-2 border-rose-300/80 bg-white/90 py-3 text-base font-extrabold text-rose-700 shadow-sm transition active:scale-[0.99] hover:bg-rose-50">
+        Nollställ
+      </button>
+    </div>
+    <p class="mt-6 text-center">
+      <a id="link-back" href="lobby.html" class="text-base font-extrabold text-easter-forest underline decoration-easter-mintdeep decoration-2 underline-offset-2 hover:opacity-90">Tillbaka</a>
+    </p>
+  </div>
+
+  <!-- Nollställ resultatlista (samma lösenord som nollställ spel) -->
+  <div id="modal-reset-results" class="fixed inset-0 z-50 hidden flex items-end justify-center bg-easter-forest/30 p-4 sm:items-center" aria-hidden="true">
+    <div class="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl ring-1 ring-rose-200/50 sm:rounded-3xl">
+      <h2 class="text-xl font-extrabold text-easter-forest">Nollställ resultatlista</h2>
+      <p id="reset-results-hint" class="mt-1 text-sm text-easter-forestsoft">Ange nollställningslösenord eller arrangörsnyckel. Alla rader raderas (kan inte ångras).</p>
+      <input id="reset-results-password-input" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+        class="password-mask mt-4 w-full rounded-2xl border-2 border-easter-mintdeep/50 bg-easter-blush/20 px-4 py-4 text-lg font-bold text-easter-forest outline-none ring-easter-blushdeep focus:border-easter-blushdeep focus:ring-2" placeholder="Lösenord / nyckel" />
+      <p id="reset-results-password-error" class="mt-2 hidden text-sm font-bold text-red-500">Fel lösenord.</p>
+      <div class="mt-6 flex gap-3">
+        <button type="button" id="reset-results-cancel" class="flex-1 rounded-2xl border-2 border-easter-forest/20 bg-white py-4 text-lg font-bold text-easter-forestsoft transition active:scale-[0.98]">Avbryt</button>
+        <button type="button" id="reset-results-confirm" class="flex-1 rounded-2xl bg-rose-600 py-4 text-lg font-extrabold text-white shadow-lg transition active:scale-[0.98]">Nollställ</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TARGET_KM_Q11 = 111;
+    const RESET_PASSWORD_LEGACY = 'arrangor2026';
+    const urlLobby = new URLSearchParams(location.search).get('lobby');
+    const LOBBY_CODE = urlLobby ? urlLobby.trim().toUpperCase() : '';
+    const LEADERBOARD_KEY = LOBBY_CODE
+      ? 'forestTreasureHuntLeaderboard_v1_' + LOBBY_CODE
+      : 'forestTreasureHuntLeaderboard_v1';
+    const CAN_VIEW_RESULTAT_KEY = LOBBY_CODE
+      ? 'forestTreasureHunt_canViewResultat_v1_' + LOBBY_CODE
+      : 'forestTreasureHunt_canViewResultat_v1';
+
+    function normalizePassword(s) {
+      return String(s || '').trim().toLowerCase();
+    }
+
+    /** Absolut skillnad i km mot rätt svar (111 km); null om utslagsfrågan saknas. */
+    function utslagsfragaKmDiff(e) {
+      if (e.kmError != null && !Number.isNaN(Number(e.kmError))) {
+        return Math.abs(Number(e.kmError));
+      }
+      if (e.kmAnswer != null && !Number.isNaN(Number(e.kmAnswer))) {
+        return Math.abs(Number(e.kmAnswer) - TARGET_KM_Q11);
+      }
+      return null;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function sortEntries(entries) {
+      return [...entries].sort((a, b) => {
+        const pa = typeof a.correct1to10 === 'number' ? a.correct1to10 : 0;
+        const pb = typeof b.correct1to10 === 'number' ? b.correct1to10 : 0;
+        if (pb !== pa) return pb - pa;
+        const errA = a.kmError == null || Number.isNaN(a.kmError) ? Infinity : a.kmError;
+        const errB = b.kmError == null || Number.isNaN(b.kmError) ? Infinity : b.kmError;
+        if (errA !== errB) return errA - errB;
+        return 0;
+      });
+    }
+
+    function renderBoard(sorted, el) {
+      if (sorted.length === 0) {
+        el.innerHTML =
+          '<p class="text-center text-base font-bold text-easter-forestsoft">Ingen har skickat in ännu.</p>';
+        return;
+      }
+      const rows = sorted
+        .map((e, rank) => {
+          const name = escapeHtml(e.name || 'Anonym');
+          const pts = typeof e.correct1to10 === 'number' ? e.correct1to10 : 0;
+          const diffKm = utslagsfragaKmDiff(e);
+          const utsText = diffKm === null ? '—' : `${Math.round(diffKm)} km från svaret`;
+          const when = e.submittedAt
+            ? new Date(e.submittedAt).toLocaleString('sv-SE', {
+                dateStyle: 'short',
+                timeStyle: 'short',
+              })
+            : '';
+          return `
+            <li class="flex flex-wrap items-baseline justify-between gap-2 border-b border-easter-mintdeep/25 py-3 last:border-0">
+              <div class="flex min-w-0 flex-1 items-baseline gap-2">
+                <span class="min-w-[2.75rem] shrink-0 text-lg font-extrabold text-easter-mintdeep">${rank === 0 ? '🏆 ' : ''}${rank + 1}.</span>
+                <span class="min-w-0 truncate text-lg font-extrabold text-easter-forest">${name}</span>
+              </div>
+              <div class="w-full text-sm font-semibold text-easter-forestsoft sm:w-auto sm:text-right">
+                <span class="whitespace-nowrap">${pts} poäng (flerval)</span>
+                <span class="mx-1 text-easter-mintdeep">·</span>
+                <span class="whitespace-nowrap" title="Skillnad från rätt km (utslag)">Utslagsfråga: ${utsText}</span>
+              </div>
+              ${when ? `<p class="w-full text-xs font-medium text-easter-forestsoft/80">${escapeHtml(when)}</p>` : ''}
+            </li>`;
+        })
+        .join('');
+      el.innerHTML = `<ol class="list-none p-0">${rows}</ol>`;
+    }
+
+    (async function init() {
+      const el = document.getElementById('board');
+      const modal = document.getElementById('modal-reset-results');
+      const pwInput = document.getElementById('reset-results-password-input');
+      const pwErr = document.getElementById('reset-results-password-error');
+      const linkBack = document.getElementById('link-back');
+      const hint = document.getElementById('reset-results-hint');
+      if (LOBBY_CODE) {
+        linkBack.href = 'forest-treasure-hunt.html?lobby=' + encodeURIComponent(LOBBY_CODE);
+        if (hint) {
+          hint.textContent =
+            'Ange arrangörsnyckel (creator token) från när spåret skapades. Alla rader raderas.';
+        }
+      } else {
+        linkBack.href = 'lobby.html';
+      }
+      let useApi = false;
+      let useApiLobby = false;
+
+      function openResetModal() {
+        pwInput.value = '';
+        pwErr.classList.add('hidden');
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-hidden', 'false');
+        setTimeout(() => pwInput.focus(), 100);
+      }
+
+      function closeResetModal() {
+        modal.classList.add('hidden');
+        modal.setAttribute('aria-hidden', 'true');
+      }
+
+      async function performResetResults() {
+        const pwd = pwInput.value.trim();
+        if (useApiLobby && LOBBY_CODE) {
+          try {
+            const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ creatorToken: pwd, scope: 'all' }),
+            });
+            if (!r.ok) {
+              pwErr.classList.remove('hidden');
+              return;
+            }
+          } catch {
+            pwErr.classList.remove('hidden');
+            return;
+          }
+        } else if (useApi) {
+          try {
+            const r = await fetch('/api/submissions/reset', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ password: pwd }),
+            });
+            if (!r.ok) {
+              pwErr.classList.remove('hidden');
+              return;
+            }
+          } catch {
+            pwErr.classList.remove('hidden');
+            return;
+          }
+        } else {
+          if (normalizePassword(pwd) !== normalizePassword(RESET_PASSWORD_LEGACY)) {
+            pwErr.classList.remove('hidden');
+            return;
+          }
+          localStorage.removeItem(LEADERBOARD_KEY);
+        }
+        closeResetModal();
+        renderBoard([], el);
+      }
+
+      document.getElementById('btn-open-reset-results').addEventListener('click', openResetModal);
+      document.getElementById('reset-results-cancel').addEventListener('click', closeResetModal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeResetModal();
+      });
+      document.getElementById('reset-results-confirm').addEventListener('click', () => {
+        performResetResults().catch(() => pwErr.classList.remove('hidden'));
+      });
+      pwInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('reset-results-confirm').click();
+      });
+
+      if (LOBBY_CODE) {
+        try {
+          const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/submissions', {
+            cache: 'no-store',
+          });
+          if (r.ok) {
+            useApi = true;
+            useApiLobby = true;
+            const entries = await r.json();
+            const sorted = sortEntries(Array.isArray(entries) ? entries : []);
+            renderBoard(sorted, el);
+            return;
+          }
+        } catch (_) {}
+        if (localStorage.getItem(CAN_VIEW_RESULTAT_KEY) !== '1') {
+          window.location.replace('forest-treasure-hunt.html?lobby=' + encodeURIComponent(LOBBY_CODE));
+          return;
+        }
+        try {
+          const raw = localStorage.getItem(LEADERBOARD_KEY);
+          const arr = raw ? JSON.parse(raw) : [];
+          const sorted = sortEntries(Array.isArray(arr) ? arr : []);
+          renderBoard(sorted, el);
+        } catch {
+          el.innerHTML =
+            '<p class="text-center text-base font-bold text-easter-forestsoft">Kunde inte läsa listan.</p>';
+        }
+        return;
+      }
+
+      try {
+        const r = await fetch('/api/submissions', { cache: 'no-store' });
+        if (r.ok) {
+          useApi = true;
+          const entries = await r.json();
+          const sorted = sortEntries(Array.isArray(entries) ? entries : []);
+          renderBoard(sorted, el);
+          return;
+        }
+      } catch (_) {}
+
+      if (localStorage.getItem(CAN_VIEW_RESULTAT_KEY) !== '1') {
+        window.location.replace('lobby.html');
+        return;
+      }
+      try {
+        const raw = localStorage.getItem(LEADERBOARD_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        const sorted = sortEntries(Array.isArray(arr) ? arr : []);
+        renderBoard(sorted, el);
+      } catch {
+        el.innerHTML =
+          '<p class="text-center text-base font-bold text-easter-forestsoft">Kunde inte läsa listan.</p>';
+      }
+    })();
+  </script>
+</body>
+</html>
