@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#c8f0d8" />
   <title>Resultat — Nygårds Påsktips</title>
+  <script src="js/api-config.js"></script>
+  <script src="js/api-base.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -189,7 +191,7 @@
         const pwd = pwInput.value.trim();
         if (useApiLobby && LOBBY_CODE) {
           try {
-            const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear', {
+            const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ creatorToken: pwd, scope: 'all' }),
@@ -204,7 +206,7 @@
           }
         } else if (useApi) {
           try {
-            const r = await fetch('/api/submissions/reset', {
+            const r = await fetch(apiUrl('/api/submissions/reset'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ password: pwd }),
@@ -242,7 +244,7 @@
 
       if (LOBBY_CODE) {
         try {
-          const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/submissions', {
+          const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/submissions'), {
             cache: 'no-store',
           });
           if (r.ok) {
@@ -271,7 +273,7 @@
       }
 
       try {
-        const r = await fetch('/api/submissions', { cache: 'no-store' });
+        const r = await fetch(apiUrl('/api/submissions'), { cache: 'no-store' });
         if (r.ok) {
           useApi = true;
           const entries = await r.json();

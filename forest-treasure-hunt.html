@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#c8f0d8" />
   <title>Nygårds Påsktips</title>
+  <script src="js/api-config.js"></script>
+  <script src="js/api-base.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -375,7 +377,7 @@
       if (!LOBBY_CODE || !USER_ID || !lastLat) return;
       const ct = getHostToken();
       try {
-        await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/state', {
+        await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/state'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -395,7 +397,7 @@
     async function pullStateFromServer() {
       if (!LOBBY_CODE || !USER_ID || !state) return;
       try {
-        const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/state?userId=' + encodeURIComponent(USER_ID));
+        const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/state?userId=' + encodeURIComponent(USER_ID)));
         const d = await r.json();
         if (d.ok && d.state === null) {
           const hasProgress =
@@ -587,7 +589,7 @@
       };
       try {
         await refreshGeoOnce();
-        const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/submissions', {
+        const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/submissions'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -682,7 +684,7 @@
         return;
       }
       try {
-        const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/players', {
+        const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/players'), {
           headers: { 'X-Creator-Token': tok },
         });
         const d = await r.json();
@@ -731,7 +733,7 @@
       if (!confirm('Nollställ denna spelare?')) return;
       const tok = getHostToken();
       if (!tok) return;
-      const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear', {
+      const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ creatorToken: tok, scope: 'user', userId }),
@@ -748,7 +750,7 @@
       if (!confirm('Ta bort detta resultat?')) return;
       const tok = getHostToken();
       if (!tok) return;
-      const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear', {
+      const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ creatorToken: tok, scope: 'submission', submissionId }),
@@ -765,7 +767,7 @@
       if (!confirm('Radera ALLA spelares status och alla resultat för denna lobby?')) return;
       const tok = getHostToken();
       if (!tok) return;
-      const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear', {
+      const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/admin/clear'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ creatorToken: tok, scope: 'all' }),
@@ -1135,7 +1137,7 @@
                   sessionStorage.getItem('pasktipset_creator_' + LOBBY_CODE) || '';
                 CREATOR_TOKEN = creatorTok;
                 IS_HOST = !!CREATOR_TOKEN;
-                const r = await fetch('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/join', {
+                const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/join'), {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({

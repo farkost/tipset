@@ -7,6 +7,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&display=swap" rel="stylesheet" />
+  <script src="js/api-config.js"></script>
+  <script src="js/api-base.js"></script>
   <style>
     body { font-family: Nunito, system-ui, sans-serif; }
     #map { height: 280px; border-radius: 1rem; z-index: 0; }
@@ -152,8 +154,16 @@
     let marker;
     let circle;
     let mcId = 0;
-    const PUBLIC = { ready: false, origin: null, loopback: false };
+    const PUBLIC = { ready: false, loopback: false, useAutoPublic: false };
     let manualPublicListeners = false;
+
+    function getPageDirectoryBase() {
+      const u = new URL(location.href);
+      u.pathname = u.pathname.replace(/[^/]*$/, '');
+      u.search = '';
+      u.hash = '';
+      return u.href;
+    }
 
     function isLoopbackHost() {
       const h = (location.hostname || '').toLowerCase();
@@ -181,17 +191,12 @@
       }
     }
 
-    function getResolvedPublicOrigin() {
-      if (PUBLIC.origin) return PUBLIC.origin;
-      return parseManualPublicOrigin();
-    }
-
     function getGameBaseUrl() {
-      const origin = getResolvedPublicOrigin();
-      if (origin) {
-        return new URL('forest-treasure-hunt.html', origin + '/').href.replace(/#$/, '');
+      const manual = parseManualPublicOrigin();
+      if (manual) {
+        return new URL('forest-treasure-hunt.html', manual + '/').href.replace(/#$/, '');
       }
-      return new URL('forest-treasure-hunt.html', location.href).href.replace(/#$/, '');
+      return new URL('forest-treasure-hunt.html', getPageDirectoryBase()).href.replace(/#$/, '');
     }
 
     function isLocalOrLoopbackGameUrl(url) {
@@ -206,7 +211,7 @@
     function updatePublicBaseHint() {
       const el = document.getElementById('public-base-hint');
       if (!el) return;
-      if (PUBLIC.origin) return;
+      if (PUBLIC.useAutoPublic) return;
       const o = parseManualPublicOrigin();
       if (!o) {
         el.textContent =
@@ -236,14 +241,14 @@
       const manual = document.getElementById('public-base-manual');
       const autoText = document.getElementById('public-base-auto-text');
       if (!auto || !manual) return;
-      if (PUBLIC.origin) {
+      if (PUBLIC.useAutoPublic) {
         auto.classList.remove('hidden');
         manual.classList.add('hidden');
         if (autoText) {
           autoText.textContent =
-            'Länkar och QR-kod använder samma adress som spelet: ' +
-            PUBLIC.origin +
-            '. Dela dem med deltagarna som vanligt.';
+            'Länkar och QR-kod använder denna adress (samma som denna sida): ' +
+            getPageDirectoryBase() +
+            ' Dela dem med deltagarna som vanligt.';
         }
         return;
       }
@@ -255,15 +260,9 @@
     async function initPublicConfig() {
       PUBLIC.loopback = isLoopbackHost();
       try {
-        const r = await fetch('/api/config');
-        const d = await r.json();
-        if (d.publicOrigin && typeof d.publicOrigin === 'string') {
-          PUBLIC.origin = d.publicOrigin;
-        }
+        await fetch(apiUrl('/api/config'));
       } catch (_) {}
-      if (!PUBLIC.origin && !PUBLIC.loopback) {
-        PUBLIC.origin = location.origin;
-      }
+      PUBLIC.useAutoPublic = !PUBLIC.loopback;
       PUBLIC.ready = true;
       applyPublicBaseUI();
     }
@@ -536,7 +535,7 @@
       };
 
       try {
-        const r = await fetch('/api/lobbies', {
+        const r = await fetch(apiUrl('/api/lobbies'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -550,7 +549,7 @@
         sessionStorage.setItem('pasktipset_creator_' + d.code, d.creatorToken);
 
         const pb = (document.getElementById('publicBase') || {}).value?.trim() || '';
-        if (!PUBLIC.origin && pb) localStorage.setItem('pasktipset_public_base', pb);
+        if (!PUBLIC.useAutoPublic && pb) localStorage.setItem('pasktipset_public_base', pb);
 
         const gameBase = getGameBaseUrl();
         const joinQs = `lobby=${encodeURIComponent(d.code)}&joinSecret=${encodeURIComponent(joinSecret)}`;
@@ -571,7 +570,7 @@
           title: body.title,
           joinSecret,
           joinGameUrl,
-          publicBase: getResolvedPublicOrigin() || '',
+          publicBase: (parseManualPublicOrigin() || getPageDirectoryBase()).replace(/\/$/, ''),
           stations,
           createdAt: Date.now(),
         });
@@ -594,8 +593,7 @@
         }
         document.getElementById('out-code').textContent = d.code;
         document.getElementById('out-token').textContent = d.creatorToken;
-        const originForLinks = getResolvedPublicOrigin() || location.origin;
-        const adminBase = new URL('admin.html', originForLinks + '/').href.replace(/#$/, '');
+        const adminBase = new URL('admin.html', getPageDirectoryBase()).href.replace(/#$/, '');
         document.getElementById('link-play').href = gameBase + '?lobby=' + encodeURIComponent(d.code);
         document.getElementById('link-admin').href = adminBase + '?lobby=' + encodeURIComponent(d.code);
         document.getElementById('link-host-other').href =

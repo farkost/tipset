@@ -20,6 +20,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from flask import Flask, abort, jsonify, request, send_from_directory
+from flask_cors import CORS
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(ROOT, "data", "pasktipset.db")
@@ -30,6 +31,17 @@ RESET_PASSWORD = os.environ.get("PASKTIPSET_RESET_PASSWORD", "arrangor2026")
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 app = Flask(__name__)
+# Statisk frontend (t.ex. GitHub Pages) kan anropa API på annan domän
+CORS(
+    app,
+    resources={
+        r"/api/*": {
+            "origins": "*",
+            "allow_headers": ["Content-Type", "X-Creator-Token"],
+            "methods": ["GET", "POST", "OPTIONS"],
+        }
+    },
+)
 
 
 def _normalize_public_origin(raw: str) -> str | None:
