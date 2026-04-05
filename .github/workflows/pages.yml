@@ -1,9 +1,14 @@
-# Publicerar repot till GitHub Pages (Settings → Pages → Source: GitHub Actions).
+# Kräver att GitHub Pages är påslaget i repot:
+#   Repo → Settings → Pages → Build and deployment → Source: GitHub Actions
+# (Om detta saknas misslyckas deploy med 404.)
+#
+# Efter första lyckade körning: https://<användare>.github.io/<repo>/
 name: Deploy GitHub Pages
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
