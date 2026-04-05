@@ -48,7 +48,7 @@
       }
       try {
         const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(code)));
-        const d = await r.json();
+        const d = await pasktipsetParseJsonResponse(r);
         if (!r.ok || !d.ok) {
           err.textContent = d.error || 'Kunde inte hitta spåret.';
           err.classList.remove('hidden');
@@ -59,7 +59,10 @@
         if (tok) sessionStorage.setItem('pasktipset_creator_' + d.code, tok);
         window.location.href = 'forest-treasure-hunt.html?lobby=' + encodeURIComponent(d.code);
       } catch {
-        err.textContent = 'Ingen kontakt med servern. Starta server.py och försök igen.';
+        err.textContent =
+          typeof pasktipsetApiUnreachableMessage === 'function'
+            ? pasktipsetApiUnreachableMessage()
+            : 'Kunde inte ansluta.';
         err.classList.remove('hidden');
       }
     });

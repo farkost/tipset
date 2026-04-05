@@ -501,9 +501,11 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        const d = await r.json();
+        const d = await pasktipsetParseJsonResponse(r);
         if (!r.ok || !d.ok) {
-          err.textContent = d.error || 'Kunde inte skapa.';
+          err.textContent =
+            d.error ||
+            (!r.ok ? 'Kunde inte spara spåret. Kontrollera att spelet är igång.' : 'Kunde inte skapa.');
           err.classList.remove('hidden');
           return;
         }
@@ -561,7 +563,10 @@
 
         showJoinQr(joinGameUrl);
       } catch {
-        err.textContent = 'Ingen server — kör python3 server.py lokalt.';
+        err.textContent =
+          typeof pasktipsetApiUnreachableMessage === 'function'
+            ? pasktipsetApiUnreachableMessage()
+            : 'Kunde inte ansluta.';
         err.classList.remove('hidden');
       }
     });

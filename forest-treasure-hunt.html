@@ -1148,9 +1148,13 @@
                     joinSecret: joinSecretFromUrl || undefined,
                   }),
                 });
-                const data = await r.json();
-                if (!data.ok) {
-                  geoMsg.textContent = data.error || 'Kunde inte ansluta.';
+                const data = await pasktipsetParseJsonResponse(r);
+                if (!r.ok || !data.ok) {
+                  geoMsg.textContent =
+                    data.error ||
+                    (typeof pasktipsetApiUnreachableMessage === 'function'
+                      ? pasktipsetApiUnreachableMessage()
+                      : 'Kunde inte ansluta.');
                   resolve(false);
                   return;
                 }
@@ -1193,7 +1197,10 @@
                 resolve(true);
               } catch (e) {
                 console.error(e);
-                geoMsg.textContent = 'Ingen kontakt med servern. Kör python3 server.py.';
+                geoMsg.textContent =
+                  typeof pasktipsetApiUnreachableMessage === 'function'
+                    ? pasktipsetApiUnreachableMessage()
+                    : 'Kunde inte ansluta till servern.';
                 resolve(false);
               }
             })();

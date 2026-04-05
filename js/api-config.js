@@ -1,4 +1,9 @@
-/** Om frontend (t.ex. GitHub Pages) och API ligger på olika adresser: sätt backend-URL här, utan avslutande snedstreck. */
+/**
+ * Backend (Flask) — måste vara satt om sidan ligger på GitHub Pages.
+ * Tom sträng = API anropas på samma adress som sidan (fungerar med python3 server.py lokalt).
+ * Exempel: 'https://min-app.up.railway.app' (utan avslutande snedstreck).
+ * Utan korrekt URL här fungerar inte skapa lobby / spela mot den publika sidan.
+ */
 window.__PASKTIPSET_API_BASE__ = '';
 
 /**
