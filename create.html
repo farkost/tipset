@@ -20,31 +20,9 @@
     <p class="mt-2 text-sm text-emerald-800/85">Flervalsfrågor (valfritt antal) och en utslagsfråga med reglage sist. Bilder: valfri webbadress (https://…). Spelområde väljs på kartan.</p>
 
     <form id="form" class="mt-8 flex flex-col gap-8">
-      <section id="public-base-section" class="rounded-2xl border border-sky-200 bg-sky-50/80 p-5 shadow-sm">
-        <div id="public-base-auto" class="hidden">
-          <h2 class="text-lg font-extrabold text-sky-950">Dela spelet</h2>
-          <p id="public-base-auto-text" class="mt-2 text-sm text-sky-900/90"></p>
-        </div>
-        <div id="public-base-manual" class="hidden">
-          <h2 class="text-lg font-extrabold text-sky-950">Dela spelet med andra</h2>
-          <p class="mt-2 text-sm text-sky-900/90">
-            Du verkar skapa spåret från en adress som bara fungerar på <strong>den här datorn</strong>. Ska familj, klass eller vänner kunna gå med behöver du öppna
-            <strong>samma skapa-sida</strong> som alla andra kommer att använda — till exempel den som skolan eller arrangören har skickat ut.
-          </p>
-          <p class="mt-2 text-xs text-sky-800/85">
-            Har du redan fått en annan webbadress till spelet (börjar med https://) kan du klistra in den nedan så att länkar och QR blir rätt redan nu.
-          </p>
-          <label class="mt-3 block text-sm font-bold text-sky-950">Webbadress till spelet (valfritt)</label>
-          <input
-            type="url"
-            id="publicBase"
-            name="publicBase"
-            class="mt-1 w-full rounded-xl border-2 border-sky-300 bg-white px-3 py-2 font-mono text-sm"
-            placeholder="https://…"
-            autocomplete="off"
-          />
-          <p id="public-base-hint" class="mt-2 text-xs text-sky-800/90"></p>
-        </div>
+      <section id="public-base-section" class="hidden rounded-2xl border border-sky-200 bg-sky-50/80 p-5 shadow-sm">
+        <h2 class="text-lg font-extrabold text-sky-950">Utveckling mot lokal server</h2>
+        <div id="public-base-body" class="mt-2 text-sm text-sky-900/90"></div>
       </section>
 
       <section class="rounded-2xl border border-emerald-200 bg-white/90 p-5 shadow-sm">
@@ -155,7 +133,6 @@
     let circle;
     let mcId = 0;
     const PUBLIC = { ready: false, loopback: false, useAutoPublic: false };
-    let manualPublicListeners = false;
 
     function getPageDirectoryBase() {
       const u = new URL(location.href);
@@ -177,24 +154,34 @@
       return s;
     }
 
-    /** Endast fältet "Webbadress till spelet" — när sidan inte redan har en publik adress. */
-    function parseManualPublicOrigin() {
-      const raw = (document.getElementById('publicBase') || {}).value?.trim() || '';
+    /** Publik webbplats (en rad i js/api-config.js). Tom på den riktiga sidan = använd nuvarande URL. */
+    function getConfiguredPublicSiteBase() {
+      const raw =
+        typeof window.PASKTIPSET_PUBLIC_SITE_URL === 'string' ? window.PASKTIPSET_PUBLIC_SITE_URL.trim() : '';
       if (!raw) return null;
       let u = raw;
       if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
       try {
-        const p = new URL(u);
-        return p.origin;
+        const x = new URL(u);
+        if (!x.pathname.endsWith('/')) x.pathname += '/';
+        x.search = '';
+        x.hash = '';
+        return x.href;
       } catch {
         return null;
       }
     }
 
+    function getPublicCreateUrl() {
+      const base = getConfiguredPublicSiteBase();
+      if (!base) return null;
+      return new URL('create.html', base).href;
+    }
+
     function getGameBaseUrl() {
-      const manual = parseManualPublicOrigin();
-      if (manual) {
-        return new URL('forest-treasure-hunt.html', manual + '/').href.replace(/#$/, '');
+      const cfg = getConfiguredPublicSiteBase();
+      if (cfg && isLoopbackHost()) {
+        return new URL('forest-treasure-hunt.html', cfg).href.replace(/#$/, '');
       }
       return new URL('forest-treasure-hunt.html', getPageDirectoryBase()).href.replace(/#$/, '');
     }
@@ -208,53 +195,27 @@
       }
     }
 
-    function updatePublicBaseHint() {
-      const el = document.getElementById('public-base-hint');
-      if (!el) return;
-      if (PUBLIC.useAutoPublic) return;
-      const o = parseManualPublicOrigin();
-      if (!o) {
-        el.textContent =
-          'Tomt = bara den här datorn kan öppna länkarna. Fyll i om du har fått en riktig webbadress till spelet.';
-        return;
-      }
-      el.textContent = 'Länkar byggs mot: ' + o + ' (sparad i webbläsaren till nästa gång).';
-    }
-
-    function setupManualPublicListeners() {
-      const inp = document.getElementById('publicBase');
-      if (!inp || manualPublicListeners) return;
-      manualPublicListeners = true;
-      const saved = localStorage.getItem('pasktipset_public_base');
-      if (saved) inp.value = saved;
-      inp.addEventListener('input', updatePublicBaseHint);
-      inp.addEventListener('blur', () => {
-        const o = parseManualPublicOrigin();
-        if (o) inp.value = o;
-        updatePublicBaseHint();
-      });
-      updatePublicBaseHint();
-    }
-
     function applyPublicBaseUI() {
-      const auto = document.getElementById('public-base-auto');
-      const manual = document.getElementById('public-base-manual');
-      const autoText = document.getElementById('public-base-auto-text');
-      if (!auto || !manual) return;
+      const section = document.getElementById('public-base-section');
+      const body = document.getElementById('public-base-body');
+      if (!section || !body) return;
       if (PUBLIC.useAutoPublic) {
-        auto.classList.remove('hidden');
-        manual.classList.add('hidden');
-        if (autoText) {
-          autoText.textContent =
-            'Länkar och QR-kod använder denna adress (samma som denna sida): ' +
-            getPageDirectoryBase() +
-            ' Dela dem med deltagarna som vanligt.';
-        }
+        section.classList.add('hidden');
         return;
       }
-      auto.classList.add('hidden');
-      manual.classList.remove('hidden');
-      setupManualPublicListeners();
+      section.classList.remove('hidden');
+      const pubCreate = getPublicCreateUrl();
+      if (pubCreate) {
+        body.innerHTML =
+          '<p>Du kör <strong>localhost</strong> som server, men <strong>länkar och QR</strong> pekar på den publika sidan (samma för alla), enligt <span class="font-mono text-xs">js/api-config.js</span>.</p>' +
+          '<p class="mt-3">Du kan spela som klient mot localhost — eller använda den publika sidan som alla andra:</p>' +
+          '<p class="mt-2"><a href="' +
+          pubCreate.replace(/"/g, '&quot;') +
+          '" class="font-bold text-sky-900 underline" target="_blank" rel="noopener">Öppna skapa-sidan på nätet</a></p>';
+      } else {
+        body.innerHTML =
+          '<p>Sätt <span class="rounded bg-white px-1 font-mono text-xs">PASKTIPSET_PUBLIC_SITE_URL</span> i <span class="font-mono text-xs">js/api-config.js</span> till er publika bas-URL (t.ex. GitHub Pages), så att länkar och QR matchar den sidan även när du utvecklar lokalt.</p>';
+      }
     }
 
     async function initPublicConfig() {
@@ -548,9 +509,6 @@
         }
         sessionStorage.setItem('pasktipset_creator_' + d.code, d.creatorToken);
 
-        const pb = (document.getElementById('publicBase') || {}).value?.trim() || '';
-        if (!PUBLIC.useAutoPublic && pb) localStorage.setItem('pasktipset_public_base', pb);
-
         const gameBase = getGameBaseUrl();
         const joinQs = `lobby=${encodeURIComponent(d.code)}&joinSecret=${encodeURIComponent(joinSecret)}`;
         const joinGameUrl = `${gameBase}?${joinQs}`;
@@ -570,7 +528,7 @@
           title: body.title,
           joinSecret,
           joinGameUrl,
-          publicBase: (parseManualPublicOrigin() || getPageDirectoryBase()).replace(/\/$/, ''),
+          publicBase: (getConfiguredPublicSiteBase() || getPageDirectoryBase()).replace(/\/$/, ''),
           stations,
           createdAt: Date.now(),
         });
@@ -585,7 +543,7 @@
         if (warnLocal) {
           if (isLocalOrLoopbackGameUrl(joinGameUrl)) {
             warnLocal.textContent =
-              'Länkarna fungerar bara på den här enheten. Ska andra gå med? Öppna skapa-sidan på samma webbadress som deltagarna ska använda (eller klistra in den adressen i fältet ovan) och skapa spåret därifrån.';
+              'Länkarna fungerar bara på den här datorn. Skapa spåret på den riktiga webbadressen (samma för alla) om deltagare ska kunna gå med.';
             warnLocal.classList.remove('hidden');
           } else {
             warnLocal.classList.add('hidden');
