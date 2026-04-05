@@ -32,12 +32,21 @@
       <button type="button" id="btn-clear-all" class="mt-6 w-full rounded-xl border-2 border-red-300 bg-red-50 py-3 font-extrabold text-red-800">Nollställ alla spelare (status + resultat)</button>
     </div>
 
-    <p class="mt-8 text-center"><a href="lobby.html" class="font-bold text-slate-700 underline">Tillbaka</a></p>
+    <p class="mt-8 flex flex-col items-center gap-3 text-center text-sm">
+      <a id="link-admin-to-game" href="forest-treasure-hunt.html" class="hidden font-bold text-emerald-800 underline">Öppna spelet (samma lobby)</a>
+      <a href="lobby.html" class="font-bold text-slate-700 underline">Tillbaka till lobby</a>
+    </p>
   </div>
   <script>
     const params = new URLSearchParams(location.search);
     const presetCode = params.get('lobby');
     if (presetCode) document.getElementById('code').value = presetCode;
+    const linkToGame = document.getElementById('link-admin-to-game');
+    if (presetCode && linkToGame) {
+      linkToGame.href =
+        'forest-treasure-hunt.html?lobby=' + encodeURIComponent(presetCode.trim().toUpperCase());
+      linkToGame.classList.remove('hidden');
+    }
     const stored = presetCode && sessionStorage.getItem('pasktipset_creator_' + presetCode.toUpperCase());
     if (stored) document.getElementById('token').value = stored;
 

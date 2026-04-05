@@ -66,6 +66,10 @@
         </button>
       </div>
       <p class="mt-1 text-xs font-semibold text-easter-forestsoft">Hantera spelare och resultat här — samma webbplats som deltagarna använder.</p>
+      <a id="host-link-admin" href="admin.html"
+        class="mt-3 inline-flex w-full items-center justify-center rounded-xl border-2 border-easter-forest/30 bg-white/80 py-2.5 text-center text-sm font-extrabold text-easter-forest transition active:scale-[0.99] hover:bg-white">
+        Öppna arrangörssida (fullständig panel)
+      </a>
     </div>
     <!-- Progress (list + aktiv fråga) -->
     <header id="progress-header" class="mb-4 shrink-0 transition-opacity duration-300">
@@ -164,6 +168,10 @@
           class="inline-flex w-full items-center justify-center rounded-xl border-2 border-easter-mintdeep bg-easter-mint/50 py-3 text-center text-base font-extrabold text-easter-forest transition active:scale-[0.99] hover:bg-easter-mint/70">
           Öppna resultatlista
         </a>
+        <a id="host-link-admin-modal" href="admin.html"
+          class="inline-flex w-full items-center justify-center rounded-xl border-2 border-easter-forest/25 bg-white py-3 text-center text-base font-extrabold text-easter-forest transition active:scale-[0.99] hover:bg-easter-mint/20">
+          Arrangörssida (samma som länken ovanför spelet)
+        </a>
         <button type="button" id="btn-host-refresh"
           class="w-full rounded-xl border-2 border-easter-forest/20 bg-white py-3 text-base font-bold text-easter-forest transition active:scale-[0.99] hover:bg-easter-mint/20">
           Uppdatera lista
@@ -184,10 +192,23 @@
     </div>
   </div>
 
-  <!-- Geostängsel: krävs innan spel laddas -->
+  <!-- Innan spel: val att spela med eller utan platstjänster -->
   <div id="geo-gate" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-easter-mint/95 px-6 text-center backdrop-blur-sm">
-    <p id="geo-msg" class="max-w-sm text-lg font-extrabold text-easter-forest">Kontrollerar plats…</p>
-    <p class="mt-3 max-w-sm text-sm font-semibold text-easter-forestsoft">Du måste tillåta plats och ligga inom arrangörens område för att spela.</p>
+    <p id="geo-msg" class="max-w-sm text-lg font-extrabold text-easter-forest">Kom igång</p>
+    <p id="geo-sub" class="mt-3 max-w-sm text-sm font-semibold text-easter-forestsoft">
+      Platstjänster är valfria. Välj <strong class="text-easter-forest">Fortsätt utan plats</strong> om du inte vill aktivera GPS.
+      Välj <strong class="text-easter-forest">Använd min plats</strong> om arrangören vill att man bara ska kunna spela inom avgränsat område.
+    </p>
+    <div id="geo-actions" class="mt-6 flex w-full max-w-sm flex-col gap-3">
+      <button type="button" id="btn-geo-skip"
+        class="rounded-2xl bg-easter-forest py-4 text-base font-extrabold text-white shadow-md transition active:scale-[0.99] hover:opacity-95">
+        Fortsätt utan plats
+      </button>
+      <button type="button" id="btn-geo-use"
+        class="rounded-2xl border-2 border-easter-forest/40 bg-white py-4 text-base font-extrabold text-easter-forest transition active:scale-[0.99] hover:bg-easter-mint/30">
+        Använd min plats (områdeskoll)
+      </button>
+    </div>
   </div>
 
   <script>
@@ -196,6 +217,8 @@
     /** Arrangörsnyckel — värd använder samma app; token skickas vid join för geo-undantag. */
     let CREATOR_TOKEN = '';
     let IS_HOST = false;
+    /** True = ingen GPS; API får skipLocation (ingen områdeskontroll). */
+    let PLAY_WITHOUT_LOCATION = false;
     let lastLat = 0;
     let lastLng = 0;
     let _saveTimer = null;
@@ -375,20 +398,25 @@
     }
 
     async function syncStateToServer() {
-      if (!LOBBY_CODE || !USER_ID || !lastLat) return;
+      if (!LOBBY_CODE || !USER_ID) return;
       const ct = getHostToken();
+      const body = {
+        userId: USER_ID,
+        state,
+        creatorToken: ct || undefined,
+        joinSecret: getJoinSecretForApi() || undefined,
+      };
+      if (PLAY_WITHOUT_LOCATION) {
+        body.skipLocation = true;
+      } else {
+        body.lat = lastLat;
+        body.lng = lastLng;
+      }
       try {
         await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/state'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: USER_ID,
-            state,
-            lat: lastLat,
-            lng: lastLng,
-            creatorToken: ct || undefined,
-            joinSecret: getJoinSecretForApi() || undefined,
-          }),
+          body: JSON.stringify(body),
         });
       } catch (e) {
         console.warn('State sync', e);
@@ -589,23 +617,30 @@
         submittedAt: Date.now(),
       };
       try {
-        await refreshGeoOnce();
+        if (!PLAY_WITHOUT_LOCATION) {
+          await refreshGeoOnce();
+        }
+        const subBody = {
+          id: entry.id,
+          userId: USER_ID,
+          name: entry.name,
+          correct1to10: entry.correct1to10,
+          kmAnswer: entry.kmAnswer,
+          kmError: entry.kmError,
+          submittedAt: entry.submittedAt,
+          creatorToken: getHostToken() || undefined,
+          joinSecret: getJoinSecretForApi() || undefined,
+        };
+        if (PLAY_WITHOUT_LOCATION) {
+          subBody.skipLocation = true;
+        } else {
+          subBody.lat = lastLat;
+          subBody.lng = lastLng;
+        }
         const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/submissions'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: entry.id,
-            userId: USER_ID,
-            name: entry.name,
-            correct1to10: entry.correct1to10,
-            kmAnswer: entry.kmAnswer,
-            kmError: entry.kmError,
-            submittedAt: entry.submittedAt,
-            lat: lastLat,
-            lng: lastLng,
-            creatorToken: getHostToken() || undefined,
-            joinSecret: getJoinSecretForApi() || undefined,
-          }),
+          body: JSON.stringify(subBody),
         });
         if (!r.ok) {
           const pe = await pasktipsetParseJsonResponse(r);
@@ -1133,96 +1168,167 @@
       const joinSecretFromUrl = (bootSearch.get('joinSecret') || bootSearch.get('join') || '').trim();
       const geoEl = document.getElementById('geo-gate');
       const geoMsg = document.getElementById('geo-msg');
-      if (!navigator.geolocation) {
-        geoMsg.textContent = 'Webbläsaren stöder inte plats. Spelet kräver plats.';
-        return false;
+      const geoActions = document.getElementById('geo-actions');
+      const btnSkip = document.getElementById('btn-geo-skip');
+      const btnUse = document.getElementById('btn-geo-use');
+      const skipKey = 'pasktipset_skip_location_' + LOBBY_CODE;
+
+      async function performJoin(skipLocation) {
+        PLAY_WITHOUT_LOCATION = skipLocation;
+        if (skipLocation) {
+          sessionStorage.setItem(skipKey, '1');
+        } else {
+          sessionStorage.removeItem(skipKey);
+        }
+        const stored = localStorage.getItem('pasktipset_uid_' + LOBBY_CODE);
+        const creatorTok = sessionStorage.getItem('pasktipset_creator_' + LOBBY_CODE) || '';
+        CREATOR_TOKEN = creatorTok;
+        IS_HOST = !!CREATOR_TOKEN;
+        const joinBody = {
+          userId: stored || undefined,
+          creatorToken: creatorTok || undefined,
+          joinSecret: joinSecretFromUrl || undefined,
+        };
+        if (skipLocation) {
+          joinBody.skipLocation = true;
+        } else {
+          joinBody.lat = lastLat;
+          joinBody.lng = lastLng;
+        }
+        const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/join'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(joinBody),
+        });
+        const data = await pasktipsetParseJsonResponse(r);
+        if (!r.ok || !data.ok) {
+          geoMsg.textContent =
+            data.error ||
+            (window.pasktipsetApiUnreachableMessage
+              ? window.pasktipsetApiUnreachableMessage()
+              : 'Spelet kunde inte nå servern.');
+          return false;
+        }
+        USER_ID = data.userId;
+        localStorage.setItem('pasktipset_uid_' + LOBBY_CODE, USER_ID);
+        if (joinSecretFromUrl) {
+          sessionStorage.setItem('pasktipset_join_secret_' + LOBBY_CODE, joinSecretFromUrl);
+          const u = new URL(location.href);
+          u.searchParams.delete('joinSecret');
+          u.searchParams.delete('join');
+          history.replaceState(
+            {},
+            '',
+            u.pathname + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '') + u.hash
+          );
+        }
+        applyLobbyConfig(data.config);
+        document.getElementById('game-title').textContent = data.title || 'Spår';
+        document.title = data.title || 'Spår';
+        const lr = document.getElementById('link-result');
+        if (lr) lr.href = 'resultat.html?lobby=' + encodeURIComponent(LOBBY_CODE);
+        const hostBar = document.getElementById('host-bar');
+        if (hostBar) hostBar.classList.toggle('hidden', !IS_HOST);
+        if (el.btnOpenReset) el.btnOpenReset.hidden = !IS_HOST;
+        const hintEl = document.getElementById('submit-result-hint');
+        if (hintEl) {
+          hintEl.textContent =
+            'Sparar resultat och öppnar listan (utslagsfråga: närmast ' +
+            TARGET_KM_Q11 +
+            ' km vid lika poäng).';
+        }
+        const hostLinkRes = document.getElementById('host-link-resultat');
+        if (hostLinkRes)
+          hostLinkRes.href = 'resultat.html?lobby=' + encodeURIComponent(LOBBY_CODE);
+        const admHref = 'admin.html?lobby=' + encodeURIComponent(LOBBY_CODE);
+        const hostLinkAdm = document.getElementById('host-link-admin');
+        const hostLinkAdm2 = document.getElementById('host-link-admin-modal');
+        if (hostLinkAdm) hostLinkAdm.href = admHref;
+        if (hostLinkAdm2) hostLinkAdm2.href = admHref;
+        el.timerDisplay.textContent = String(Math.ceil(TIMER_MS / 1000));
+        await pullStateFromServer();
+        state = loadState();
+        if (!state.statuses || state.statuses.length !== NUM_QUESTIONS) state = defaultState();
+        geoEl.classList.add('hidden');
+        return true;
       }
+
+      if (sessionStorage.getItem(skipKey) === '1') {
+        geoMsg.textContent = 'Ansluter…';
+        if (geoActions) geoActions.classList.add('hidden');
+        try {
+          return await performJoin(true);
+        } catch (e) {
+          console.error(e);
+          geoMsg.textContent =
+            e instanceof TypeError
+              ? window.pasktipsetApiUnreachableMessage()
+              : 'Spelet kunde inte nå servern.';
+          return false;
+        }
+      }
+
+      if (!navigator.geolocation && btnUse) {
+        btnUse.classList.add('hidden');
+        btnUse.setAttribute('aria-hidden', 'true');
+      }
+
       return new Promise((resolve) => {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            (async () => {
+        const fail = (msg) => {
+          geoMsg.textContent = msg;
+          resolve(false);
+        };
+
+        btnSkip?.addEventListener('click', async () => {
+          btnSkip.disabled = true;
+          if (btnUse) btnUse.disabled = true;
+          geoMsg.textContent = 'Ansluter…';
+          try {
+            const ok = await performJoin(true);
+            resolve(ok);
+          } catch (e) {
+            console.error(e);
+            fail(
+              e instanceof TypeError
+                ? window.pasktipsetApiUnreachableMessage()
+                : 'Spelet kunde inte nå servern.'
+            );
+          }
+        });
+
+        btnUse?.addEventListener('click', () => {
+          if (!navigator.geolocation) {
+            geoMsg.textContent = 'Webbläsaren stöder inte plats. Använd "Fortsätt utan plats".';
+            return;
+          }
+          btnSkip.disabled = true;
+          btnUse.disabled = true;
+          geoMsg.textContent = 'Kontrollerar plats…';
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
               lastLat = pos.coords.latitude;
               lastLng = pos.coords.longitude;
-              const stored = localStorage.getItem('pasktipset_uid_' + LOBBY_CODE);
               try {
-                const creatorTok =
-                  sessionStorage.getItem('pasktipset_creator_' + LOBBY_CODE) || '';
-                CREATOR_TOKEN = creatorTok;
-                IS_HOST = !!CREATOR_TOKEN;
-                const r = await fetch(apiUrl('/api/lobbies/' + encodeURIComponent(LOBBY_CODE) + '/join'), {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    lat: lastLat,
-                    lng: lastLng,
-                    userId: stored || undefined,
-                    creatorToken: creatorTok || undefined,
-                    joinSecret: joinSecretFromUrl || undefined,
-                  }),
-                });
-                const data = await pasktipsetParseJsonResponse(r);
-                if (!r.ok || !data.ok) {
-                  geoMsg.textContent =
-                    data.error ||
-                    (window.pasktipsetApiUnreachableMessage
-                      ? window.pasktipsetApiUnreachableMessage()
-                      : 'Spelet kunde inte nå servern.');
-                  resolve(false);
-                  return;
-                }
-                USER_ID = data.userId;
-                localStorage.setItem('pasktipset_uid_' + LOBBY_CODE, USER_ID);
-                if (joinSecretFromUrl) {
-                  sessionStorage.setItem('pasktipset_join_secret_' + LOBBY_CODE, joinSecretFromUrl);
-                  const u = new URL(location.href);
-                  u.searchParams.delete('joinSecret');
-                  u.searchParams.delete('join');
-                  history.replaceState(
-                    {},
-                    '',
-                    u.pathname + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '') + u.hash
-                  );
-                }
-                applyLobbyConfig(data.config);
-                document.getElementById('game-title').textContent = data.title || 'Spår';
-                document.title = data.title || 'Spår';
-                const lr = document.getElementById('link-result');
-                if (lr) lr.href = 'resultat.html?lobby=' + encodeURIComponent(LOBBY_CODE);
-                const hostBar = document.getElementById('host-bar');
-                if (hostBar) hostBar.classList.toggle('hidden', !IS_HOST);
-                if (el.btnOpenReset) el.btnOpenReset.hidden = !IS_HOST;
-                const hintEl = document.getElementById('submit-result-hint');
-                if (hintEl) {
-                  hintEl.textContent =
-                    'Sparar resultat och öppnar listan (utslagsfråga: närmast ' +
-                    TARGET_KM_Q11 +
-                    ' km vid lika poäng).';
-                }
-                const hostLinkRes = document.getElementById('host-link-resultat');
-                if (hostLinkRes)
-                  hostLinkRes.href = 'resultat.html?lobby=' + encodeURIComponent(LOBBY_CODE);
-                el.timerDisplay.textContent = String(Math.ceil(TIMER_MS / 1000));
-                await pullStateFromServer();
-                state = loadState();
-                if (!state.statuses || state.statuses.length !== NUM_QUESTIONS) state = defaultState();
-                geoEl.classList.add('hidden');
-                resolve(true);
+                const ok = await performJoin(false);
+                resolve(ok);
               } catch (e) {
                 console.error(e);
-                geoMsg.textContent =
+                fail(
                   e instanceof TypeError
                     ? window.pasktipsetApiUnreachableMessage()
-                    : 'Spelet kunde inte nå servern.';
-                resolve(false);
+                    : 'Spelet kunde inte nå servern.'
+                );
               }
-            })();
-          },
-          () => {
-            geoMsg.textContent = 'Tillåt platsen i webbläsaren för att spela.';
-            resolve(false);
-          },
-          { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 }
-        );
+            },
+            () => {
+              geoMsg.textContent =
+                'Plats tilläts inte. Tryck "Fortsätt utan plats" för att spela utan GPS, eller tillåt plats i webbläsaren och försök igen.';
+              btnSkip.disabled = false;
+              btnUse.disabled = false;
+            },
+            { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 }
+          );
+        });
       });
     }
 
@@ -1231,7 +1337,7 @@
     });
 
     setInterval(() => {
-      if (!LOBBY_CODE || !navigator.geolocation) return;
+      if (!LOBBY_CODE || PLAY_WITHOUT_LOCATION || !navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(
         (p) => {
           lastLat = p.coords.latitude;

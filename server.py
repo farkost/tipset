@@ -359,16 +359,31 @@ def _geo_ok(row: sqlite3.Row, lat: float, lng: float) -> bool:
     return d <= float(row["radius_m"])
 
 
+def _lat_lng_and_skip_geo(data: dict, row: sqlite3.Row) -> tuple[float, float, bool]:
+    """
+    Parsar lat/lng från JSON. Om skipLocation är True eller koordinater saknas:
+    lobbycentrum + skip_geo=True (ingen områdeskontroll).
+    Annars riktiga koordinater + skip_geo=False (geostängsel om inte värd/spårlösen).
+    """
+    if data.get("skipLocation") is True:
+        return float(row["center_lat"]), float(row["center_lng"]), True
+    raw_lat = data.get("lat")
+    raw_lng = data.get("lng")
+    if raw_lat is None or raw_lng is None:
+        return float(row["center_lat"]), float(row["center_lng"]), True
+    try:
+        lat = float(raw_lat)
+        lng = float(raw_lng)
+    except (TypeError, ValueError):
+        return float(row["center_lat"]), float(row["center_lng"]), True
+    return lat, lng, False
+
+
 @app.route("/api/lobbies/<code>/join", methods=["POST", "OPTIONS"])
 def api_lobby_join(code: str):
     if request.method == "OPTIONS":
         return ("", 204)
     data = request.get_json(force=True, silent=True) or {}
-    try:
-        lat = float(data.get("lat"))
-        lng = float(data.get("lng"))
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "error": "Position saknas."}), 400
 
     creator_token = str(data.get("creatorToken") or "").strip()
     join_secret_req = str(data.get("joinSecret") or "").strip()
@@ -380,12 +395,13 @@ def api_lobby_join(code: str):
         row = _get_lobby_by_code(conn, code_u)
         if row is None:
             return jsonify({"ok": False, "error": "Lobby hittades inte."}), 404
+        lat, lng, skip_geo = _lat_lng_and_skip_geo(data, row)
         raw_cfg = _parse_config(row)
         is_host = bool(creator_token) and secrets.compare_digest(
             creator_token, row["creator_token"]
         )
         join_ok = _join_secret_ok(raw_cfg, join_secret_req)
-        if not is_host and not join_ok and not _geo_ok(row, lat, lng):
+        if not is_host and not join_ok and not skip_geo and not _geo_ok(row, lat, lng):
             return jsonify({"ok": False, "error": "Du är utanför spelområdet."}), 403
         cfg = _config_for_client(raw_cfg)
         title = row["title"]
@@ -434,11 +450,6 @@ def api_lobby_state(code: str):
     uid = str(data.get("userId") or "").strip()
     if not uid:
         return jsonify({"ok": False, "error": "userId saknas."}), 400
-    try:
-        lat = float(data.get("lat"))
-        lng = float(data.get("lng"))
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "error": "Position saknas."}), 400
     st = data.get("state")
     if st is None:
         return jsonify({"ok": False, "error": "state saknas."}), 400
@@ -449,12 +460,13 @@ def api_lobby_state(code: str):
         row = _get_lobby_by_code(conn, code_u)
         if row is None:
             return jsonify({"ok": False, "error": "Lobby hittades inte."}), 404
+        lat, lng, skip_geo = _lat_lng_and_skip_geo(data, row)
         raw_cfg = _parse_config(row)
         is_host = bool(creator_token) and secrets.compare_digest(
             creator_token, row["creator_token"]
         )
         join_ok = _join_secret_ok(raw_cfg, join_secret_req)
-        if not is_host and not join_ok and not _geo_ok(row, lat, lng):
+        if not is_host and not join_ok and not skip_geo and not _geo_ok(row, lat, lng):
             return jsonify({"ok": False, "error": "Utanför spelområdet."}), 403
         conn.execute(
             """
@@ -494,11 +506,6 @@ def api_lobby_submissions(code: str):
         return jsonify(sort_entries(rows))
 
     data = request.get_json(force=True, silent=True) or {}
-    try:
-        lat = float(data.get("lat"))
-        lng = float(data.get("lng"))
-    except (TypeError, ValueError):
-        return jsonify({"ok": False, "error": "Position saknas."}), 400
     creator_token = str(data.get("creatorToken") or "").strip()
     join_secret_req = str(data.get("joinSecret") or "").strip()
 
@@ -506,12 +513,13 @@ def api_lobby_submissions(code: str):
         row = _get_lobby_by_code(conn, code_u)
         if row is None:
             return jsonify({"ok": False, "error": "Lobby hittades inte."}), 404
+        lat, lng, skip_geo = _lat_lng_and_skip_geo(data, row)
         raw_cfg = _parse_config(row)
         is_host = bool(creator_token) and secrets.compare_digest(
             creator_token, row["creator_token"]
         )
         join_ok = _join_secret_ok(raw_cfg, join_secret_req)
-        if not is_host and not join_ok and not _geo_ok(row, lat, lng):
+        if not is_host and not join_ok and not skip_geo and not _geo_ok(row, lat, lng):
             return jsonify({"ok": False, "error": "Utanför spelområdet."}), 403
 
     sid = str(data.get("id") or uuid.uuid4())
