@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <title>Admin — spår</title>
+  <script src="js/pasktipset-boot.js"></script>
   <script src="js/api-config.js"></script>
   <script src="js/api-base.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -42,8 +43,8 @@
 
     async function api(path, opts) {
       const r = await fetch(apiUrl(path), opts);
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || r.statusText);
+      const d = await window.pasktipsetParseJsonResponse(r);
+      if (!r.ok) throw new Error(d.error || 'Fel');
       return d;
     }
 
@@ -95,7 +96,10 @@
         window.__code = code;
         window.__token = creatorToken;
       } catch (e) {
-        err.textContent = e.message || 'Fel';
+        err.textContent =
+          e instanceof TypeError
+            ? window.pasktipsetApiUnreachableMessage()
+            : e.message || 'Fel';
         err.classList.remove('hidden');
       }
     });

@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&display=swap" rel="stylesheet" />
+  <script src="js/pasktipset-boot.js"></script>
   <script src="js/api-config.js"></script>
   <script src="js/api-base.js"></script>
   <style>
@@ -562,10 +563,11 @@
         document.getElementById('link-print').href = 'stations-print.html?lobby=' + encodeURIComponent(d.code);
 
         showJoinQr(joinGameUrl);
-      } catch {
-        err.textContent = window.pasktipsetApiUnreachableMessage
-          ? window.pasktipsetApiUnreachableMessage()
-          : 'Spelet kunde inte nå servern.';
+      } catch (e) {
+        err.textContent =
+          e instanceof TypeError
+            ? window.pasktipsetApiUnreachableMessage()
+            : 'Spelet kunde inte nå servern.';
         err.classList.remove('hidden');
       }
     });
