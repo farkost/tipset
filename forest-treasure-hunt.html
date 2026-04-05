@@ -1152,9 +1152,9 @@
                 if (!r.ok || !data.ok) {
                   geoMsg.textContent =
                     data.error ||
-                    (typeof pasktipsetApiUnreachableMessage === 'function'
-                      ? pasktipsetApiUnreachableMessage()
-                      : 'Kunde inte ansluta.');
+                    (window.pasktipsetApiUnreachableMessage
+                      ? window.pasktipsetApiUnreachableMessage()
+                      : 'Spelet kunde inte nå servern.');
                   resolve(false);
                   return;
                 }
@@ -1197,10 +1197,9 @@
                 resolve(true);
               } catch (e) {
                 console.error(e);
-                geoMsg.textContent =
-                  typeof pasktipsetApiUnreachableMessage === 'function'
-                    ? pasktipsetApiUnreachableMessage()
-                    : 'Kunde inte ansluta till servern.';
+                geoMsg.textContent = window.pasktipsetApiUnreachableMessage
+                  ? window.pasktipsetApiUnreachableMessage()
+                  : 'Spelet kunde inte nå servern.';
                 resolve(false);
               }
             })();

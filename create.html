@@ -563,10 +563,9 @@
 
         showJoinQr(joinGameUrl);
       } catch {
-        err.textContent =
-          typeof pasktipsetApiUnreachableMessage === 'function'
-            ? pasktipsetApiUnreachableMessage()
-            : 'Kunde inte ansluta.';
+        err.textContent = window.pasktipsetApiUnreachableMessage
+          ? window.pasktipsetApiUnreachableMessage()
+          : 'Spelet kunde inte nå servern.';
         err.classList.remove('hidden');
       }
     });

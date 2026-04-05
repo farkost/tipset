@@ -59,10 +59,9 @@
         if (tok) sessionStorage.setItem('pasktipset_creator_' + d.code, tok);
         window.location.href = 'forest-treasure-hunt.html?lobby=' + encodeURIComponent(d.code);
       } catch {
-        err.textContent =
-          typeof pasktipsetApiUnreachableMessage === 'function'
-            ? pasktipsetApiUnreachableMessage()
-            : 'Kunde inte ansluta.';
+        err.textContent = window.pasktipsetApiUnreachableMessage
+          ? window.pasktipsetApiUnreachableMessage()
+          : 'Spelet kunde inte nå servern.';
         err.classList.remove('hidden');
       }
     });
