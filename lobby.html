@@ -16,6 +16,17 @@
     <h1 class="text-center text-3xl font-extrabold tracking-tight">Spår &amp; lobby</h1>
     <p class="text-center text-sm text-emerald-800/80">Anslut med kod från värd, eller skapa eget spår. Samma webbapp fungerar för värd och spelare — ingen separat värdserver.</p>
 
+    <div
+      id="no-backend-block"
+      class="hidden rounded-2xl border-2 border-rose-400 bg-rose-50 px-4 py-4 text-left text-sm text-rose-950 shadow-sm"
+      role="alert"
+    >
+      <p class="font-extrabold">Det går inte att använda lobby från den här sidan ännu</p>
+      <p class="mt-2 leading-relaxed">
+        Den här webbplatsen har ingen server som kan spara spår — <strong>det går inte</strong> att gå med eller spela här förrän en server är satt upp och kopplad.
+      </p>
+    </div>
+
     <div class="rounded-3xl border border-emerald-200/80 bg-white/90 p-6 shadow-md">
       <h2 class="text-lg font-extrabold">Gå med</h2>
       <p class="mt-1 text-sm text-emerald-800/80">Ange sex tecken (t.ex. från arrangören).</p>
@@ -30,15 +41,40 @@
       </details>
     </div>
 
-    <a href="create.html" class="block rounded-2xl border-2 border-emerald-300 bg-white/70 py-4 text-center text-lg font-extrabold text-emerald-900 shadow-sm active:scale-[0.99]">
-      Skapa nytt spår
-    </a>
+    <a
+      id="link-create"
+      href="create.html"
+      class="block rounded-2xl border-2 border-emerald-300 bg-white/70 py-4 text-center text-lg font-extrabold text-emerald-900 shadow-sm active:scale-[0.99]"
+      >Skapa nytt spår</a>
   </div>
   <script>
+    (function lobbyBackendGate() {
+      const block = document.getElementById('no-backend-block');
+      const join = document.getElementById('btn-join');
+      const createLink = document.getElementById('link-create');
+      const missing = window.pasktipsetBackendIsMissing && window.pasktipsetBackendIsMissing();
+      if (!missing) {
+        if (block) block.classList.add('hidden');
+        return;
+      }
+      if (block) block.classList.remove('hidden');
+      if (join) join.disabled = true;
+      if (createLink) {
+        createLink.classList.add('pointer-events-none', 'opacity-50', 'cursor-not-allowed');
+        createLink.setAttribute('aria-disabled', 'true');
+        createLink.addEventListener('click', function (ev) {
+          ev.preventDefault();
+        });
+      }
+    })();
+
     function norm(s) {
       return String(s || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     }
     document.getElementById('btn-join').addEventListener('click', async () => {
+      if (window.pasktipsetBackendIsMissing && window.pasktipsetBackendIsMissing()) {
+        return;
+      }
       const code = norm(document.getElementById('join-code').value);
       const err = document.getElementById('join-err');
       err.classList.add('hidden');

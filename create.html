@@ -20,6 +20,21 @@
     <h1 class="text-3xl font-extrabold">Skapa nytt spår</h1>
     <p class="mt-2 text-sm text-emerald-800/85">Flervalsfrågor (valfritt antal) och en utslagsfråga med reglage sist. Bilder: valfri webbadress (https://…). Spelområde väljs på kartan.</p>
 
+    <div
+      id="no-backend-block"
+      class="mt-6 hidden rounded-2xl border-2 border-rose-400 bg-rose-50 px-4 py-5 text-rose-950 shadow-sm"
+      role="alert"
+    >
+      <p class="text-lg font-extrabold">Det går inte att skapa spår från den här sidan ännu</p>
+      <p class="mt-2 text-sm leading-relaxed">
+        En vanlig webbsida (t.ex. på GitHub Pages) kan <strong>inte</strong> köra servern som sparar lobby och databas — det är en teknisk begränsning, inte något du gjort fel.
+        <strong>Det går alltså inte</strong> att skapa spår här förrän någon har satt upp en server och kopplat spelet till den.
+      </p>
+      <p class="mt-3 text-sm leading-relaxed">
+        På <strong>egen dator</strong> kan du köra <code class="rounded bg-white px-1.5 py-0.5 font-mono text-xs">python3 server.py</code> och öppna denna sida därifrån — då fungerar skapa spår lokalt.
+      </p>
+    </div>
+
     <form id="form" class="mt-8 flex flex-col gap-8">
       <section id="public-base-section" class="hidden rounded-2xl border border-sky-200 bg-sky-50/80 p-5 shadow-sm">
         <h2 class="text-lg font-extrabold text-sky-950">Utveckling mot lokal server</h2>
@@ -219,6 +234,23 @@
       }
     }
 
+    function applyBackendGate() {
+      const block = document.getElementById('no-backend-block');
+      const form = document.getElementById('form');
+      const btn = document.getElementById('btnSubmit');
+      if (!block || !form || !btn) return;
+      const missing = window.pasktipsetBackendIsMissing && window.pasktipsetBackendIsMissing();
+      if (missing) {
+        block.classList.remove('hidden');
+        form.classList.add('pointer-events-none', 'opacity-50');
+        btn.disabled = true;
+      } else {
+        block.classList.add('hidden');
+        form.classList.remove('pointer-events-none', 'opacity-50');
+        btn.disabled = false;
+      }
+    }
+
     async function initPublicConfig() {
       PUBLIC.loopback = isLoopbackHost();
       try {
@@ -230,8 +262,7 @@
     }
 
     initPublicConfig().then(() => {
-      const btn = document.getElementById('btnSubmit');
-      if (btn) btn.disabled = false;
+      applyBackendGate();
     });
 
     function showJoinQr(joinGameUrl) {
@@ -450,6 +481,9 @@
 
     document.getElementById('form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (window.pasktipsetBackendIsMissing && window.pasktipsetBackendIsMissing()) {
+        return;
+      }
       const err = document.getElementById('err');
       err.classList.add('hidden');
 

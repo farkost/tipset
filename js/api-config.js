@@ -40,3 +40,13 @@ window.pasktipsetParseJsonResponse = async function (res) {
     return {};
   }
 };
+
+/**
+ * True om vi är på publik URL (inte localhost) och ingen API-bas är satt.
+ * Då går det inte att skapa lobby eller spela mot databas — GitHub Pages kör ingen server.
+ */
+window.pasktipsetBackendIsMissing = function () {
+  if (window.pasktipsetIsLocalDevHost()) return false;
+  var b = window.__PASKTIPSET_API_BASE__;
+  return !b || (typeof b === 'string' && !b.trim());
+};
