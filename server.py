@@ -666,13 +666,18 @@ def main() -> None:
     )
     parser.add_argument(
         "--host",
-        default=os.environ.get("HOST", "127.0.0.1"),
+        default=os.environ.get(
+            "HOST",
+            "0.0.0.0" if os.environ.get("PORT") else "127.0.0.1",
+        ),
     )
     args = parser.parse_args()
-    init_db()
     print(f"Server: http://{args.host}:{args.port}/  (databas: {DB_PATH})")
     app.run(host=args.host, port=args.port, threaded=True, use_reloader=False)
 
+
+# Körs även vid gunicorn (då körs inte __main__) — SQLite skapas/uppdateras här.
+init_db()
 
 if __name__ == "__main__":
     main()

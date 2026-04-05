@@ -4,7 +4,7 @@
  * Exempel: 'https://min-app.up.railway.app' (utan avslutande snedstreck).
  * Utan korrekt URL här fungerar inte skapa lobby / spela mot den publika sidan.
  */
-window.__PASKTIPSET_API_BASE__ = '';
+window.__PASKTIPSET_API_BASE__ = 'https://tipset-production.up.railway.app';
 
 /**
  * Bas-URL till den publika webbplatsen (samma för alla), med avslutande snedstreck.
